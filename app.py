@@ -48,7 +48,7 @@ def create_connection():
 def check_connection():
     try:
         # 🔹 เข้าถึง document system/way
-        doc_ref = db.collection("system").document("way")
+        doc_ref = db.collection("system").document("connection")
         doc = doc_ref.get()
 
         if not doc.exists:
