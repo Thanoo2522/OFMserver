@@ -1,0 +1,10 @@
+Flask
+gunicorn
+openai
+requests
+replicate
+boto3
+ flask-cors
+psycopg2-binary
+firebase-admin
+agora-token-builder==1.0.0
