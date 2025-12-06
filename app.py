@@ -66,7 +66,7 @@ def check_connection():
         print("❌ Error:", e)
         return jsonify({"status": "error", "message": str(e)}), 500
 #-----------------------------------------------------------
-    #------------------------- ดึงภาพทำสไลค์ที่ storage ------------
+    #------------------------- ดึงภาพทำสไลค์ที่ storage --------------
 @app.route('/get_view_list', methods=['GET'])
 def get_view_list():
     try:
