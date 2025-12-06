@@ -66,3 +66,19 @@ def check_connection():
         print("❌ Error:", e)
         return jsonify({"status": "error", "message": str(e)}), 500
 #-----------------------------------------------------------
+    #------------------------- ดึงภาพทำสไลค์ที่ storage ------------
+@app.route('/get_view_list', methods=['GET'])
+def get_view_list():
+    try:
+        bucket = storage.bucket()
+        blobs = bucket.list_blobs(prefix="modeproduct/")
+
+        filenames = [
+            blob.name.replace("modeproduct/", "") 
+            for blob in blobs 
+            if blob.name.replace("modeproduct/", "") != ""  # กรองค่าว่าง
+        ]
+
+        return jsonify(filenames)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
