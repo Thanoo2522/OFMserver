@@ -18,8 +18,12 @@ app = Flask(__name__)
 # ------------------- Config -------------------get_user
 RTD_URL1 = "https://retailstore-4780f-default-rtdb.asia-southeast1.firebasedatabase.app"
 BUCKET_NAME = "retailstore-4780f.firebasestorage.app"
+#--------
 UPLOAD_FOLDER = "uploads"
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+UPLOAD_ROOT = "storage_folders"   # ← ต้องมีตัวนี้
+os.makedirs(UPLOAD_ROOT, exist_ok=True)
+#-------
 service_account_json = os.environ.get("FIREBASE_SERVICE_KEY")
 cred = credentials.Certificate(json.loads(service_account_json))
 firebase_admin.initialize_app(cred, {"storageBucket": BUCKET_NAME,"databaseURL": RTD_URL1})
