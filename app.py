@@ -96,24 +96,36 @@ def get_modeproduct_image(filename):
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 # ---------------- API สำหรับสร้างโฟลเดอร์ ----------------
-@app.route("/create_storage_folder", methods=["POST"])
-def create_storage_folder():
+@app.route("/upload_image_with_folder", methods=["POST"])
+def upload_image_with_folder():
     try:
-        data = request.json
-        folder_name = data.get("folder_name")
+        folder_name = request.form.get("folder_name")
+        image_file = request.files.get("image_file")
 
         if not folder_name:
-            return jsonify({"status": "error", "message": "folder_name required"}), 400
+            return jsonify({"status": "error", "message": "ต้องส่ง folder_name"}), 400
 
-        # Firebase Trick → ต้องสร้างไฟล์ .keep เพื่อให้เห็นโฟลเดอร์
-        blob = bucket.blob(f"{folder_name}/.init")
+        if not image_file:
+            return jsonify({"status": "error", "message": "ต้องส่ง image_file"}), 400
 
-        blob.upload_from_string("init")  # เนื้อหาใส่อะไรก็ได้
+        # 📌 โฟลเดอร์ที่จะสร้าง
+        folder_path = os.path.join(UPLOAD_ROOT, folder_name)
+
+        os.makedirs(folder_path, exist_ok=True)
+
+        # 📌 ตั้งชื่อไฟล์ภาพ
+        file_path = os.path.join(folder_path, "image.jpg")
+
+        # 📌 บันทึกภาพ
+        image_file.save(file_path)
 
         return jsonify({
             "status": "success",
-            "message": f"Folder '{folder_name}' created in Firebase Storage."
+            "message": f"บันทึกรูปสำเร็จในโฟลเดอร์: {folder_name}"
         })
 
     except Exception as e:
-        return jsonify({"status": "error", "message": str(e)}), 500
+        return jsonify({
+            "status": "error",
+            "message": str(e)
+        }), 500
