@@ -173,3 +173,28 @@ def register_shop():
         print("🔥 ERROR:", e)
         return jsonify({"status": "error", "message": str(e)}), 500
     #------------------------------------------------
+@app.route("/check_password", methods=["POST"])
+def check_password():
+    try:
+        data = request.get_json()
+        input_password = data.get("password")
+
+        if not input_password:
+            return jsonify({"status": "error", "message": "ต้องส่ง password"}), 400
+
+        # collection: Shopname
+        # document: <password>
+        doc_ref = db.collection("Shopname").document(input_password)
+        doc = doc_ref.get()
+
+        if doc.exists:
+            # password ถูกต้อง
+            return jsonify({"status": "success", "message": "เข้าสู่ระบบสำเร็จ"})
+        else:
+            # ไม่มี document ชื่อนี้ → ไม่ได้ลงทะเบียน
+            return jsonify({"status": "error", "message": "ยังไม่ได้ลงทะเบียน"})
+
+    except Exception as e:
+        print("ERROR:", e)
+        return jsonify({"status": "error", "message": str(e)}), 500
+
