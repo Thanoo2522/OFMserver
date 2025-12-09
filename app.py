@@ -160,7 +160,8 @@ def register_shop():
 
         doc_ref.set({
             "shopname": shopname,
-            "phone": phone
+            "phone": phone,
+            "password":password
         })
 
         return jsonify({
