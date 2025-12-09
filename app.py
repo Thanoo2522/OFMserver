@@ -1,4 +1,5 @@
 from flask import Flask, request, jsonify, send_file, send_from_directory
+from openai import OpenAI
 import os
 import base64
 from datetime import datetime
@@ -31,7 +32,32 @@ firebase_admin.initialize_app(cred, {"storageBucket": BUCKET_NAME,"databaseURL":
 db = firestore.client()
 rtdb_ref = rtdb.reference("/") # ← Realtime Database root
 bucket = storage.bucket()
-#--------------------------------------------------------------------------------------
+#-------------------------------------------------------------------------------------
+OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY")
+if not OPENAI_API_KEY:
+    raise ValueError("❌ ERROR: OPENAI_API_KEY is not set in environment")
+
+client = OpenAI(api_key=OPENAI_API_KEY)
+#-------------------------------ให้ GPT แก้ไขภาพถ่าย-------------------------------------------------------
+@app.route("/edit_image", methods=["POST"])
+def edit_image():
+    if "image" not in request.files:
+        return {"error": "No image uploaded"}, 400
+    image_file = request.files["image"]
+    image_bytes = image_file.read()
+    edited = client.images.edit(
+        model="gpt-image-1",
+        image=image_bytes,
+        prompt="Make background pure white, enhance brightness and clarity, keep product details sharp",
+        size="768x768"  # 🔥 ชัด + ประหยัด
+    )
+    result_bytes = base64.b64decode(edited.data[0].b64_json)
+    return send_file(
+        BytesIO(result_bytes),
+        mimetype="image/png"
+    )
+#---------------------------------------------------------------------------------------------------
+
 # 🔹 สร้าง document system/way และตั้งค่า connected="true"
 @app.route("/create_connection", methods=["POST"])
 def create_connection():
