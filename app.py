@@ -46,20 +46,21 @@ def edit_image():
 
     image_file = request.files["image"]
 
-    # 🔥 บังคับ mimetype ให้ถูกต้อง
     mime = image_file.mimetype
     if mime not in ["image/jpeg", "image/png", "image/webp"]:
         return {"error": f"Invalid mimetype: {mime}"}, 400
 
-    # ส่งให้ OpenAI ด้วยไฟล์จริง ไม่ใช่ bytes
+    # ⛔ Render บางครั้ง stream = empty
+    # ⛔ แก้เป็น .read() เพื่อให้ได้ bytes เสมอ
+    image_bytes = image_file.read()
+
     edited = client.images.edit(
         model="gpt-image-1",
-        image=("photo.jpg", image_file.stream, mime),  # ⭐ ต้องเป็น tuple แบบนี้
+        image=("photo.jpg", image_bytes, mime),
         prompt="Make background pure white, enhance brightness and clarity, keep product details sharp",
         size="768x768"
     )
 
-    # รับ base64 กลับมา
     result_bytes = base64.b64decode(edited.data[0].b64_json)
 
     return send_file(
