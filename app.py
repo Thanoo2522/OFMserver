@@ -39,25 +39,26 @@ if not OPENAI_API_KEY:
 
 client = OpenAI(api_key=OPENAI_API_KEY)
 #-------------------------------ให้ GPT แก้ไขภาพถ่าย-------------------------------------------------------
+from openai import OpenAI
+import base64
+from io import BytesIO
+from flask import Flask, request, send_file
+
+client = OpenAI()
+
 @app.route("/edit_image", methods=["POST"])
 def edit_image():
     if "image" not in request.files:
         return {"error": "No image uploaded"}, 400
 
     image_file = request.files["image"]
-
     mime = image_file.mimetype
-    if mime not in ["image/jpeg", "image/png", "image/webp"]:
-        return {"error": f"Invalid mimetype: {mime}"}, 400
-
-    # อ่าน bytes ตรงๆ ปลอดภัยกว่า image_file.stream
-    image_bytes = image_file.read()
 
     edited = client.images.edit(
-        model="gpt-image-1",
-        image=("photo.jpg", image_bytes, mime),
-        prompt="Make background pure white, enhance brightness and clarity, keep product details sharp",
-        size="1024x1024"      # 👈 ต้องใช้ขนาดที่รองรับเท่านั้น
+        model="gpt-4o-mini",
+        image=("photo.jpg", image_file.stream, mime),
+        prompt="make background pure white, improve clarity, sharpen details",
+        size="1024x1024"
     )
 
     result_bytes = base64.b64decode(edited.data[0].b64_json)
@@ -66,6 +67,7 @@ def edit_image():
         BytesIO(result_bytes),
         mimetype="image/png"
     )
+
 
 #---------------------------------------------------------------------------------------------------
 
