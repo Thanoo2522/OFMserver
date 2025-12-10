@@ -39,25 +39,21 @@ client = OpenAI(api_key=OPENAI_API_KEY)
 @app.route("/edit_image", methods=["POST"])
 def edit_image():
     try:
-        # 1) ตรวจสอบไฟล์
         if "image" not in request.files:
             return jsonify({"error": "Missing file 'image'"}), 400
 
         image_file = request.files["image"]
         mime = image_file.mimetype or "image/jpeg"
 
-        # 2) เรียก GPT Image Edit
         edited = client.images.edit(
             model="gpt-image-1",
             image=("image.jpg", image_file.stream, mime),
             prompt="clean white background, sharpen, enhance clarity, improve lighting",
-            size="1024x1024"       # ← ความละเอียดสูงสุด
+            size="1024x1024"
         )
 
-        # 3) แปลง base64 → bytes
         result_bytes = base64.b64decode(edited.data[0].b64_json)
 
-        # 4) ส่งกลับเป็นไฟล์ PNG
         return send_file(
             BytesIO(result_bytes),
             mimetype="image/png",
@@ -68,7 +64,6 @@ def edit_image():
         print("❌ ERROR in /edit_image:", e)
         traceback.print_exc()
         return jsonify({"error": str(e)}), 500
-
 
 # --------------------------- Firebase APIS ---------------------------
 @app.route("/upload_image_with_folder", methods=["POST"])
