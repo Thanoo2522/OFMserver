@@ -65,43 +65,40 @@ def edit_image():
         print("❌ ERROR in /edit_image:", e)
         traceback.print_exc()
         return jsonify({"error": str(e)}), 500
-#-------------------------------------------
-@app.route("/get_view_list", methods=["GET"])
+    #-----------------------------
+    @app.route('/get_view_list', methods=['GET'])
 def get_view_list():
     try:
-        folder_path = "modeproduct"   # โฟลเดอร์เก็บรูป
-        files = []
+        bucket = storage.bucket()
+        blobs = bucket.list_blobs(prefix="modeproduct/")
 
-        # loop เอาแต่ไฟล์รูป
-        for f in os.listdir(folder_path):
-            if f.lower().endswith((".jpg", ".jpeg", ".png", ".webp")):
-                files.append(f)
+        filenames = [
+            blob.name.replace("modeproduct/", "") 
+            for blob in blobs 
+            if blob.name.replace("modeproduct/", "") != ""  # กรองค่าว่าง
+        ]
 
-        return jsonify(files), 200
-
+        return jsonify(filenames)
     except Exception as e:
-        print("❌ ERROR in /get_view_list:", e)
         return jsonify({"error": str(e)}), 500
-#-------------------------
-
-
-@app.route("/modeproduct/<filename>", methods=["GET"])
-def get_image(filename):
+#-------------------------------------------
+@app.route('/modeproduct/<filename>', methods=['GET'])
+def image_view(filename):
     try:
-        folder_path = "modeproduct"
-        full_path = os.path.join(folder_path, filename)
+        blob = bucket.blob(f"modeproduct/{filename}")
 
-        if not os.path.exists(full_path):
+        # โหลดไฟล์ลง temp
+        temp_file = tempfile.NamedTemporaryFile(delete=False)
+        try:
+            blob.download_to_filename(temp_file.name)
+        except Exception:
             return jsonify({"error": "File not found"}), 404
 
-        mime, _ = mimetypes.guess_type(full_path)
-        mime = mime or "application/octet-stream"
-
-        return send_file(full_path, mimetype=mime)
-
+        return send_file(temp_file.name, mimetype='image/jpeg', as_attachment=False)
     except Exception as e:
-        print("❌ ERROR:", e)
         return jsonify({"error": str(e)}), 500
+
+#-------------------------
 
 # --------------------------- Firebase APIS ---------------------------
 @app.route("/upload_image_with_folder", methods=["POST"])
