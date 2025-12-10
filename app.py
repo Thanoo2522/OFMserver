@@ -9,6 +9,7 @@ import firebase_admin
 from firebase_admin import credentials, storage, db as rtdb, firestore
 from openai import OpenAI
 import mimetypes
+import tempfile
 
 app = Flask(__name__)
 
@@ -66,39 +67,46 @@ def edit_image():
         traceback.print_exc()
         return jsonify({"error": str(e)}), 500
     #-----------------------------
-    @app.route('/get_view_list', methods=['GET'])
+@app.route('/get_view_list', methods=['GET'])
 def get_view_list():
     try:
         bucket = storage.bucket()
         blobs = bucket.list_blobs(prefix="modeproduct/")
 
         filenames = [
-            blob.name.replace("modeproduct/", "") 
-            for blob in blobs 
-            if blob.name.replace("modeproduct/", "") != ""  # กรองค่าว่าง
+            blob.name.replace("modeproduct/", "")
+            for blob in blobs
+            if blob.name.replace("modeproduct/", "") != ""
         ]
 
         return jsonify(filenames)
     except Exception as e:
         return jsonify({"error": str(e)}), 500
-#-------------------------------------------
-@app.route('/modeproduct/<filename>', methods=['GET'])
+    #---------------------------------------------
+@app.route('/image_view/<filename>', methods=['GET'])
 def image_view(filename):
     try:
+        bucket = storage.bucket()
         blob = bucket.blob(f"modeproduct/{filename}")
 
-        # โหลดไฟล์ลง temp
-        temp_file = tempfile.NamedTemporaryFile(delete=False)
-        try:
-            blob.download_to_filename(temp_file.name)
-        except Exception:
+        if not blob.exists():
             return jsonify({"error": "File not found"}), 404
 
-        return send_file(temp_file.name, mimetype='image/jpeg', as_attachment=False)
+        temp_file = tempfile.NamedTemporaryFile(delete=False)
+        temp_path = temp_file.name
+        temp_file.close()
+
+        blob.download_to_filename(temp_path)
+
+        ext = filename.lower().split('.')[-1]
+        mimetype = f"image/{'jpeg' if ext == 'jpg' else ext}"
+
+        return send_file(temp_path, mimetype=mimetype, as_attachment=False)
+
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
-#-------------------------
+
 
 # --------------------------- Firebase APIS ---------------------------
 @app.route("/upload_image_with_folder", methods=["POST"])
