@@ -78,14 +78,18 @@ def edit_image():
 @app.route('/get_view_list', methods=['GET'])
 def get_view_list():
     try:
+        folder = request.args.get("folder")
+        if not folder:
+            return jsonify({"error": "Missing ?folder="}), 400
+
         bucket = storage.bucket()
 
-        # list all files in folder "modeproduct/"
-        blobs = bucket.list_blobs(prefix="modeproduct/")
+        # ดึงไฟล์ทั้งหมดในโฟลเดอร์นั้น
+        blobs = bucket.list_blobs(prefix=f"{folder}/")
 
         filenames = []
         for blob in blobs:
-            name = blob.name.replace("modeproduct/", "")
+            name = blob.name.replace(f"{folder}/", "")
             if name and "." in name:
                 filenames.append(name)
 
@@ -95,11 +99,11 @@ def get_view_list():
         return jsonify({"error": str(e)}), 500
 
     #---------------------------------------------
-@app.route('/image_view/<filename>', methods=['GET'])
-def image_view(filename):
+@app.route('/image_view/<folder>/<filename>', methods=['GET'])
+def image_view(folder, filename):
     try:
         bucket = storage.bucket()
-        blob = bucket.blob(f"modeproduct/{filename}")
+        blob = bucket.blob(f"{folder}/{filename}")
 
         if not blob.exists():
             return jsonify({"error": "File not found"}), 404
@@ -117,6 +121,7 @@ def image_view(filename):
 
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+
 
 
 
