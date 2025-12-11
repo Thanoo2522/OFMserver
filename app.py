@@ -42,7 +42,7 @@ client = OpenAI(api_key=OPENAI_API_KEY)
 
 
 # --------------------------- IMAGE EDIT ---------------------------
-@app.route("/edit_image", methods=["POST"])
+ @app.route("/edit_image", methods=["POST"])
 def edit_image():
     try:
         if "image" not in request.files:
@@ -54,37 +54,27 @@ def edit_image():
         edited = client.images.edit(
             model="gpt-image-1",
             image=("image.jpg", image_file.stream, mime),
-            prompt="clean full white background (top, left, right, bottom), enhance brightness, sharpen, improve clarity",
-            size="768x768",          # ลดขนาดเพื่อประหยัด RAM
-            response_format="b64_json",
-            stream=False             # ปิด streaming ป้องกัน timeout
+            prompt=(
+                "expand canvas on top and bottom with pure white background, "
+                "keep original subject unchanged, clean full white background, "
+                "sharpen, enhance clarity, improve lighting"
+            ),
+            size="1024x1024"
         )
 
         result_bytes = base64.b64decode(edited.data[0].b64_json)
 
-        return send_file(BytesIO(result_bytes), mimetype="image/png")
+        return send_file(
+            BytesIO(result_bytes),
+            mimetype="image/png",
+            as_attachment=False
+        )
 
     except Exception as e:
         print("❌ ERROR in /edit_image:", e)
         traceback.print_exc()
         return jsonify({"error": str(e)}), 500
 
-    #-----------------------------
-@app.route('/get_view_list', methods=['GET'])
-def get_view_list():
-    try:
-        bucket = storage.bucket()
-        blobs = bucket.list_blobs(prefix="modeproduct/")
-
-        filenames = [
-            blob.name.replace("modeproduct/", "")
-            for blob in blobs
-            if blob.name.replace("modeproduct/", "") != ""
-        ]
-
-        return jsonify(filenames)
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
     #---------------------------------------------
 @app.route('/image_view/<filename>', methods=['GET'])
 def image_view(filename):
