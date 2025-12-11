@@ -49,57 +49,20 @@ def edit_image():
             return jsonify({"error": "Missing file 'image'"}), 400
 
         image_file = request.files["image"]
+        mime = image_file.mimetype or "image/jpeg"
 
-        # -----------------------------------------------------------
-        # 1) เปิดภาพด้วย Pillow (ทำสำเนา new image + white background)
-        # -----------------------------------------------------------
-        img = Image.open(image_file.stream).convert("RGBA")
-
-        # ขนาดภาพเดิม
-        w, h = img.size
-
-        # เพิ่มขอบรอบด้าน (หน่วย: px)
-        border = 100  # ปรับได้ตามต้องการ
-
-        new_w = w + border * 2
-        new_h = h + border * 2
-
-        # สร้างภาพใหม่พื้นหลังขาวล้วน
-        white_bg = Image.new("RGBA", (new_w, new_h), (255, 255, 255, 255))
-
-        # วางภาพเดิมไว้ตรงกลาง
-        white_bg.paste(img, (border, border), img if img.mode == "RGBA" else None)
-
-        # แปลงกลับเป็น RGB (ไม่ต้องใช้ alpha)
-        final_img = white_bg.convert("RGB")
-
-        # -----------------------------------------------------------
-        # 2) แปลงเป็น bytes เพื่อส่งต่อให้ gpt-image-1
-        # -----------------------------------------------------------
-        buffer = BytesIO()
-        final_img.save(buffer, format="JPEG")
-        buffer.seek(0)
-
-        # -----------------------------------------------------------
-        # 3) ส่งภาพให้ GPT แต่ง (พื้นหลังจะเป็นสีขาวแน่นอน)
-        # -----------------------------------------------------------
         edited = client.images.edit(
             model="gpt-image-1",
-            image=("image.jpg", buffer, "image/jpeg"),
-            prompt="keep subject exactly the same, pure white background, clean edges, high clarity, balanced lighting",
-            size="1024x1024"
+            image=("image.jpg", image_file.stream, mime),
+            prompt="clean full white background (top, left, right, bottom), enhance brightness, sharpen, improve clarity",
+            size="768x768",          # ลดขนาดเพื่อประหยัด RAM
+            response_format="b64_json",
+            stream=False             # ปิด streaming ป้องกัน timeout
         )
 
-        # -----------------------------------------------------------
-        # 4) ส่งภาพกลับให้ MAUI
-        # -----------------------------------------------------------
         result_bytes = base64.b64decode(edited.data[0].b64_json)
 
-        return send_file(
-            BytesIO(result_bytes),
-            mimetype="image/png",
-            as_attachment=False
-        )
+        return send_file(BytesIO(result_bytes), mimetype="image/png")
 
     except Exception as e:
         print("❌ ERROR in /edit_image:", e)
