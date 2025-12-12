@@ -129,6 +129,8 @@ def image_view(folder, filename):
 @app.route("/upload_image_with_folder", methods=["POST"])
 def upload_image_with_folder():
     try:
+        bucket = storage.bucket()
+
         folder_name = request.form.get("folder_name")
         file = request.files.get("image_file")
 
@@ -138,23 +140,34 @@ def upload_image_with_folder():
         if not file:
             return jsonify({"status": "error", "message": "image_file missing"}), 400
 
+        # 📌 ชื่อไฟล์ = <folder_name>.jpg
         filename = f"{folder_name}.jpg"
+
+        # 📌 Path = <folder_name>/<folder_name>.jpg
         path = f"{folder_name}/{filename}"
 
         blob = bucket.blob(path)
+
+        # 📌 อัปโหลดรูป
         blob.upload_from_file(file, content_type="image/jpeg")
+
+        # 📌 ทำให้เข้าถึงภาพได้ (optional)
         blob.make_public()
 
         return jsonify({
             "status": "success",
-            "url": blob.public_url,
-            "path": path
-        })
+            "message": "Upload successful",
+            "folder": folder_name,
+            "filename": filename,
+            "path": path,
+            "public_url": blob.public_url
+        }), 200
 
     except Exception as e:
         print("🔥 ERROR:", e)
         traceback.print_exc()
         return jsonify({"status": "error", "message": str(e)}), 500
+
 
 
 # --------------------------- Login/Register --------------------------
