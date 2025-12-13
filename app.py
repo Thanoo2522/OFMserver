@@ -180,23 +180,31 @@ def check_password():
 def save_product_price():
     try:
         data = request.get_json()
+        print("📦 JSON RECEIVED:", data)  # 👈 debug สำคัญมาก
+
+        if not data:
+            return jsonify({
+                "status": "error",
+                "message": "No JSON data received"
+            }), 400
 
         Shopname = data.get("Shopname")
         Textmode = data.get("Textmode")
-
-        num_remainpack = data.get("num_remainpack", 0)
-        numpack = data.get("numpack", 0)
-        unitproduct = data.get("unitproduct", "")
-        pricepack = data.get("pricepack", 0)
-
-        num_remainsingle = data.get("num_remainsingle", 0)
-        pricesingle = data.get("pricesingle", 0)
 
         if not Shopname or not Textmode:
             return jsonify({
                 "status": "error",
                 "message": "Missing Shopname or Textmode"
             }), 400
+
+        # 🔹 ตัวเลข แปลงให้ชัวร์
+        num_remainpack = int(data.get("num_remainpack", 0))
+        numpack = int(data.get("numpack", 0))
+        unitproduct = data.get("unitproduct", "")
+        pricepack = float(data.get("pricepack", 0))
+
+        num_remainsingle = int(data.get("num_remainsingle", 0))
+        pricesingle = float(data.get("pricesingle", 0))
 
         doc_ref = (
             db.collection("showname")
@@ -217,12 +225,13 @@ def save_product_price():
         return jsonify({
             "status": "success",
             "message": "บันทึกข้อมูลเรียบร้อย"
-        })
+        }), 200
 
     except Exception as e:
         return jsonify({
             "status": "error",
             "message": str(e)
         }), 500
+
 #-----------------------------------------------------
  
