@@ -175,6 +175,54 @@ def check_password():
     else:
         return jsonify({"status": "wrong_password"}), 200
 
+#-------------------------------------------
+@app.route("/save_product_price", methods=["POST"])
+def save_product_price():
+    try:
+        data = request.get_json()
 
-if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=8080)
+        Shopname = data.get("Shopname")
+        Textmode = data.get("Textmode")
+
+        num_remainpack = data.get("num_remainpack", 0)
+        numpack = data.get("numpack", 0)
+        unitproduct = data.get("unitproduct", "")
+        pricepack = data.get("pricepack", 0)
+
+        num_remainsingle = data.get("num_remainsingle", 0)
+        pricesingle = data.get("pricesingle", 0)
+
+        if not Shopname or not Textmode:
+            return jsonify({
+                "status": "error",
+                "message": "Missing Shopname or Textmode"
+            }), 400
+
+        doc_ref = (
+            db.collection("showname")
+              .document(Shopname)
+              .collection("mode")
+              .document(Textmode)
+        )
+
+        doc_ref.set({
+            "num_remainpack": num_remainpack,
+            "numpack": numpack,
+            "unitproduct": unitproduct,
+            "pricepack": pricepack,
+            "num_remainsingle": num_remainsingle,
+            "pricesingle": pricesingle
+        })
+
+        return jsonify({
+            "status": "success",
+            "message": "บันทึกข้อมูลเรียบร้อย"
+        })
+
+    except Exception as e:
+        return jsonify({
+            "status": "error",
+            "message": str(e)
+        }), 500
+#-----------------------------------------------------
+ 
