@@ -207,7 +207,7 @@ def save_product_price():
         num_remainsingle = int(data.get("num_remainsingle", 0))
         pricesingle = float(data.get("pricesingle", 0))
 
-        db.collection("showname") \
+        db.collection("Shopname") \
           .document(shopname) \
           .collection("mode") \
           .document(textmode) \
