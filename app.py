@@ -183,15 +183,19 @@ def save_product_price():
         print("📦 JSON RECEIVED:", data)
 
         if not data:
-            return jsonify({"status": "error", "message": "No JSON data"}), 400
+            return jsonify({
+                "status": "error",
+                "message": "No JSON data"
+            }), 400
 
-        shopname = data.get("shopname")
-        textmode = data.get("textmode")
+        # ✅ ใช้ตัวใหญ่ให้ตรงกับ MAUI
+        shopname = data.get("Shopname")
+        textmode = data.get("Textmode")
 
         if not shopname or not textmode:
             return jsonify({
                 "status": "error",
-                "message": "Missing shopname or textmode"
+                "message": "Missing Shopname or Textmode"
             }), 400
 
         num_remainpack = int(data.get("num_remainpack", 0))
@@ -215,11 +219,17 @@ def save_product_price():
               "pricesingle": pricesingle
           })
 
-        return jsonify({"status": "success"}), 200
+        return jsonify({
+            "status": "success",
+            "message": "บันทึกข้อมูลเรียบร้อย"
+        }), 200
 
     except Exception as e:
         print("🔥 ERROR:", e)
-        return jsonify({"status": "error", "message": str(e)}), 500
+        return jsonify({
+            "status": "error",
+            "message": str(e)
+        }), 500
 
 #-----------------------------------------------------
  
