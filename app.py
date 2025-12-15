@@ -147,7 +147,7 @@ def update_mode():
         }), 500
 
 
-# --------------------------- Upload Image ------------------
+# --------------------------- Upload Image ---------------
 @app.route("/upload_image_with_folder", methods=["POST"])
 def upload_image_with_folder():
     try:
