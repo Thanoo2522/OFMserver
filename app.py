@@ -147,12 +147,12 @@ def update_mode():
         }), 500
 
 
-# --------------------------- Upload Image ---------------------------
+# --------------------------- Upload Image -------------------- 
 @app.route("/upload_image_with_folder", methods=["POST"])
 def upload_image_with_folder():
     try:
         shopname = request.form.get("shopname")
-        folder_name = request.form.get("folder_name")
+        folder_name = request.form.get("folder_name")de
         picturename = request.form.get("picturename")
         file = request.files.get("image_file")
 
