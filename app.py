@@ -113,28 +113,74 @@ def image_view(folder, filename):
 @app.route("/upload_image_with_folder", methods=["POST"])
 def upload_image_with_folder():
     try:
+        shopname = request.form.get("shopname")
         folder_name = request.form.get("folder_name")
         picturename = request.form.get("picturename")
         file = request.files.get("image_file")
 
-        if not folder_name or not picturename or not file:
-            return jsonify({"status": "error", "message": "Missing fields"}), 400
+        if not shopname or not folder_name or not picturename or not file:
+            return jsonify({
+                "status": "error",
+                "message": "Missing fields"
+            }), 400
 
-        path = f"{folder_name}/{picturename}"
+        # 📂 โครงสร้าง: shopname/folder_name/picturename
+        path = f"{shopname}/{folder_name}/{picturename}"
         blob = bucket.blob(path)
 
-        blob.upload_from_file(file, content_type="image/jpeg")
+        blob.upload_from_file(
+            file,
+            content_type=file.mimetype or "image/jpeg"
+        )
         blob.make_public()
 
         return jsonify({
             "status": "success",
+            "shopname": shopname,
+            "folder_name": folder_name,
             "path": path,
             "public_url": blob.public_url
         }), 200
 
     except Exception as e:
         traceback.print_exc()
-        return jsonify({"status": "error", "message": str(e)}), 500
+        return jsonify({
+            "status": "error",
+            "message": str(e)
+        }), 500
+
+ #-------------------สร้าง โฟลเดอร์ตอนลงทะเบียนใหม่ ----------------- 
+@app.route("/create_shop_folder", methods=["POST"])
+def create_shop_folder():
+    try:
+        data = request.get_json()
+        shopname = data.get("shopname")
+
+        if not shopname:
+            return jsonify({
+                "status": "error",
+                "message": "Missing shopname"
+            }), 400
+
+        # สร้าง blob เปล่าเพื่อให้เกิด folder
+        folder_path = f"{shopname}/.keep"
+        blob = bucket.blob(folder_path)
+
+        if not blob.exists():
+            blob.upload_from_string("", content_type="text/plain")
+
+        return jsonify({
+            "status": "success",
+            "shopname": shopname,
+            "folder": f"{shopname}/"
+        }), 200
+
+    except Exception as e:
+        traceback.print_exc()
+        return jsonify({
+            "status": "error",
+            "message": str(e)
+        }), 500
 
 # --------------------------- Register / Login ---------------------------
 @app.route("/register_shop", methods=["POST"])
