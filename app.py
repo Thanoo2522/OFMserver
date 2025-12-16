@@ -408,13 +408,11 @@ def get_products_by_mode():
                 "message": "Missing shopname or textmode"
             }), 400
 
-        products_ref = (
-            db.collection("Shopname")
-              .document(shopname)
-              .collection("mode")
-              .document(textmode)
-              .collection("product")
-        )
+        products_ref = db.collection("Shopname") \
+            .document(shopname) \
+            .collection("mode") \
+            .document(textmode) \
+            .collection("product")
 
         docs = products_ref.stream()
 
@@ -424,7 +422,8 @@ def get_products_by_mode():
             products.append({
                 "productname": doc.id,
                 "num_remainpack": data.get("num_remainpack", 0),
-                "pricesingle": data.get("pricesingle", 0)
+                "pricesingle": data.get("pricesingle", 0),
+                "image_url": data.get("image_url", "")
             })
 
         return jsonify({
@@ -437,5 +436,6 @@ def get_products_by_mode():
             "status": "error",
             "message": str(e)
         }), 500
+
 
  
