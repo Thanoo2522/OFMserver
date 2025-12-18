@@ -366,7 +366,7 @@ def save_product_price():
         pricepack = float(data.get("pricepack", 0))
 
         num_remainsingle = int(data.get("num_remainsingle", 0))
-        pricesingle = float(data.get("pricesingle", 0))
+        
 
         db.collection("Shopname") \
           .document(shopname) \
@@ -380,8 +380,8 @@ def save_product_price():
               "unitproduct": unitproduct,
               "pricepack": pricepack,
               "num_remainsingle": num_remainsingle,
-              "image_url": image_url,
-              "pricesingle": pricesingle
+              "image_url": image_url
+              
           })
 
         return jsonify({
@@ -450,7 +450,7 @@ def get_products_by_mode():
                 "numpack": data.get("numpack", 0),   
                 "pricepack": data.get("pricepack", 0),  
 
-                "pricesingle": data.get("pricesingle", 0),
+             
                 "image_url": data.get("image_url", ""),
                  "unitproduct": data.get("unitproduct", "")
                 
