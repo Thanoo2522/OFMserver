@@ -548,21 +548,20 @@ def save_order():
 def get_orders():
     phone = request.args.get("phone")
 
-    if not phone:
-        return jsonify({"status": "error", "message": "phone required"}), 400
-
     orders = []
 
-    phone_ref = db.collection("Order").document(phone)
-
-    # 🔁 loop productname collection
-    for product_col in phone_ref.collections():
-        productname = product_col.id
-
+    docs = db.collection("Order").document(phone).collections()
+    for product_col in docs:
         for doc in product_col.stream():
             data = doc.to_dict()
-            data["productname"] = productname
-            data["timestamp"] = doc.id
+
+            # 🔥 แปลง Firestore Timestamp → ISO string
+            created = data.get("created_at")
+            if created:
+                data["created_at"] = created.isoformat()
+            else:
+                data["created_at"] = None
+
             orders.append(data)
 
     return jsonify({
