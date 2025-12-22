@@ -550,30 +550,35 @@ def update_save_order():
 
     phone = data["phone"]
     productname = data["productname"]
+    timestamp = data["timestamp"]          # 🔥 รับมาจาก client
     numberproduct = data["numberproduct"]
 
-    doc_ref = db.collection("Order").document(phone).collection("items").document(productname)
+    # ใช้ document เดิม
+    doc_ref = db.collection("Order").document(phone).collection(productname).document(timestamp)
 
-    doc_ref.set({
+    # อัปเดต field numberproduct เท่านั้น
+    doc_ref.update({
         "numberproduct": numberproduct,
         "updated_at": firestore.SERVER_TIMESTAMP
-    }, merge=True)  # 🔥 merge=True อัปเดต field เท่านั้น
+    })
 
     return jsonify({"status": "success"})
+
 
 #---------------------------------------
 @app.route("/get_orders", methods=["GET"])
 def get_orders():
     phone = request.args.get("phone")
-
     orders = []
 
+    # ดึงทุก collection ของ phone
     docs = db.collection("Order").document(phone).collections()
     for product_col in docs:
         for doc in product_col.stream():
             data = doc.to_dict()
+            data["timestamp"] = doc.id  # 🔥 เก็บ document id เป็น timestamp
 
-            # 🔥 แปลง Firestore Timestamp → ISO string
+            # แปลง Firestore Timestamp → ISO string
             created = data.get("created_at")
             if created:
                 data["created_at"] = created.isoformat()
@@ -586,5 +591,6 @@ def get_orders():
         "status": "success",
         "orders": orders
     })
+
 
  
