@@ -543,6 +543,29 @@ def save_order():
     })
 
     return jsonify({"status": "success"})
+    #------------------------------------------
+@app.route("/update_save_order", methods=["POST"])
+def update_save_order():
+    data = request.get_json()
+
+    phone = data["phone"]
+    productname = data["productname"]
+    numberproduct = data["numberproduct"]
+
+    doc_ref = (
+        db.collection("Order")
+          .document(phone)
+          .collection("items")
+          .document(productname)
+    )
+
+    doc_ref.update({
+        "numberproduct": numberproduct,
+        "updated_at": firestore.SERVER_TIMESTAMP
+    })
+
+    return jsonify({"status": "success"})
+
 #---------------------------------------
 @app.route("/get_orders", methods=["GET"])
 def get_orders():
