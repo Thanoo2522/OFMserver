@@ -550,20 +550,19 @@ def update_save_order():
 
     phone = data["phone"]
     productname = data["productname"]
-    timestamp = data["timestamp"]          # 🔥 รับมาจาก client
+    timestamp = data["timestamp"]
     numberproduct = data["numberproduct"]
 
-    # ใช้ document เดิม
     doc_ref = db.collection("Order").document(phone).collection(productname).document(timestamp)
 
-    # อัปเดต field numberproduct เท่านั้น
-    doc_ref.update({
+    # ใช้ merge=True เพื่อไม่ให้ error และไม่ลบ field อื่น
+    doc_ref.set({
+        "productname": productname,
         "numberproduct": numberproduct,
         "updated_at": firestore.SERVER_TIMESTAMP
-    })
+    }, merge=True)
 
     return jsonify({"status": "success"})
-
 
 #---------------------------------------
 @app.route("/get_orders", methods=["GET"])
