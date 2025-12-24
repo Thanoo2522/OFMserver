@@ -592,6 +592,29 @@ def get_orders():
         "status": "success",
         "orders": orders
     })
+#----------------------------------------------
+@app.route("/delete_order", methods=["POST"])
+def delete_order():
+    data = request.get_json()
+
+    phone = data["phone"]
+    productname = data["productname"]
+    timestamp = data["timestamp"]
+
+    doc_ref = (
+        db.collection("Order")
+          .document(phone)
+          .collection(productname)
+          .document(timestamp)
+    )
+
+    doc_ref.delete()
+
+    return jsonify({
+        "status": "success",
+        "message": "Order deleted"
+    })
+
 #---------------------------------------------
 @app.route("/get_preorder", methods=["GET"])
 def get_preorder():
