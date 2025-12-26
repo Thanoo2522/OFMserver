@@ -10,7 +10,7 @@ from PIL import Image
 from datetime import datetime
 
 from werkzeug.security import generate_password_hash, check_password_hash
-#---------------------------------------
+#-------------------------------------
 import qrcode
 import io
  
