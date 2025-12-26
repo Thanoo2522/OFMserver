@@ -16,7 +16,7 @@ import io
  
 INSTALL_URL = "https://jai.app/install"
 
-# ------------------- Flask ----------------
+# ------------------- Flask ----------- 
 app = Flask(__name__)
 
 # ------------------- Firebase Config -------------------
