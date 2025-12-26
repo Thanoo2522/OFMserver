@@ -800,3 +800,68 @@ def login_customer():
             "status": "error",
             "message": str(e)
         }), 500
+#--------------------- สร้าง  qrcode--
+import qrcode
+import io
+import base64
+INSTALL_URL = "https://jai.app/install"
+
+@app.route("/generate_qr", methods=["POST"])
+def generate_qr():
+    try:
+        data = request.get_json()
+
+        if not data:
+            return jsonify({
+                "status": "error",
+                "message": "No JSON data"
+            }), 400
+
+        tambon = data.get("tambon")
+        mode = data.get("mode")        # agent / retail
+        ref_store = data.get("ref_store")
+
+        if not tambon or not mode or not ref_store:
+            return jsonify({
+                "status": "error",
+                "message": "Missing required fields"
+            }), 400
+
+        # 🔗 URL ที่จะฝังใน QR
+        qr_url = (
+            f"{INSTALL_URL}"
+            f"?tambon={tambon}"
+            f"&mode={mode}"
+            f"&ref={ref_store}"
+        )
+
+        # 🧩 สร้าง QR Code
+        qr = qrcode.QRCode(
+            version=1,
+            error_correction=qrcode.constants.ERROR_CORRECT_M,
+            box_size=10,
+            border=4,
+        )
+        qr.add_data(qr_url)
+        qr.make(fit=True)
+
+        img = qr.make_image(fill_color="black", back_color="white")
+
+        # 🧵 แปลงเป็น Base64
+        buffer = io.BytesIO()
+        img.save(buffer, format="PNG")
+        buffer.seek(0)
+
+        qr_base64 = base64.b64encode(buffer.read()).decode("utf-8")
+
+        return jsonify({
+            "status": "success",
+            "qr_url": qr_url,
+            "qr_base64": qr_base64
+        })
+
+    except Exception as e:
+        return jsonify({
+            "status": "error",
+            "message": str(e)
+        }), 500
