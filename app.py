@@ -432,23 +432,7 @@ def save_product_price():
             "message": str(e)
         }), 500
 #-------------------- mode from storage --------------------------------
-@app.route("/get_modes", methods=["GET"])
-def get_modes():
-    shopname = request.args.get("shopname")
-    if not shopname:
-        return jsonify([])
 
-    bucket = storage.bucket()
-    blobs = bucket.list_blobs(prefix=f"{shopname}/", delimiter="/")
-
-    modes = []
-    for page in blobs.pages:
-        if page.prefixes:
-            for p in page.prefixes:
-                mode = p.replace(f"{shopname}/", "").replace("/", "")
-                modes.append(mode)
-
-    return jsonify(modes)
 #-----------------------------------------------------
 @app.route("/get_products", methods=["GET"])
 def get_products():
