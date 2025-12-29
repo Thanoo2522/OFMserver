@@ -690,6 +690,31 @@ def get_modes():
 
     # ส่งกลับ List<string> ของ folder ลูกทั้งหมด
     return jsonify(sorted(list(folder_names)))
+    #--------------------------------
+@app.route("/get_modesonline", methods=["GET"])
+def get_modesonline():
+    # ดึง shopname จาก query string
+    shopname = request.args.get("shopname")
+    if not shopname:
+        return jsonify([])  # ถ้าไม่มี shopname ส่งกลับ empty list
+
+    # folder แม่: shop1/เครื่องปรุงรส/
+    prefix = f"{shopname}/เครื่องปรุงรส/"
+
+    blobs = bucket.list_blobs(prefix=prefix)
+    folder_names = set()
+
+    for blob in blobs:
+        # เอา prefix ออก
+        name = blob.name.replace(prefix, "")
+        # ตัวอย่าง: "ซอส/ซอสพริก.jpg"
+        if "/" in name:
+            folder = name.split("/")[0]
+            if folder:
+                folder_names.add(folder)
+
+    # ส่งกลับ List<string> ของ folder ลูกทั้งหมด
+    return jsonify(sorted(list(folder_names)))
 
 #---------------------------------------------
 @app.route("/get_preorder", methods=["GET"])
