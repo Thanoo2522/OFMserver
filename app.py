@@ -563,14 +563,14 @@ def get_products_by_mode():
 @app.route("/save_order", methods=["POST"])
 def save_order():
     data = request.get_json()
+    customerName = data["customerName"]  # เพราะ MAUI ส่งค่าใน key phone
 
-    phone = data["phone"]
     productname = data["productname"]
     timestamp = datetime.utcnow().isoformat()
 
     doc_ref = (
         db.collection("Order")
-          .document(phone)
+          .document(customerName)
           .collection(productname)
           .document(timestamp)
     )
@@ -585,6 +585,7 @@ def save_order():
     })
 
     return jsonify({"status": "success"})
+
     #------------------------------------------
 @app.route("/update_save_order", methods=["POST"])
 def update_save_order():
@@ -720,9 +721,12 @@ def get_modesonline():
 #---------------------------------------------
 @app.route("/get_preorder", methods=["GET"])
 def get_preorder():
-    phone = request.args.get("phone")
+    # รับ customerName แทน phone
+    customerName = request.args.get("customerName")
+    if not customerName:
+        return jsonify({"status": "error", "message": "Missing customerName"}), 400
 
-    doc_ref = db.collection("Order").document(phone)
+    doc_ref = db.collection("Order").document(customerName)
     doc = doc_ref.get()
 
     if not doc.exists:
@@ -741,19 +745,24 @@ def get_preorder():
         "status": "success",
         "Preorder": data.get("Preorder", 0)
     })
+
 #---------------เพิ่ม Preorder ทีละ 1 (ตอนกด BuyPack / BuyUnit) 
 @app.route("/inc_preorder", methods=["POST"])
 def inc_preorder():
     data = request.get_json()
-    phone = data["phone"]
+    customerName = data.get("customerName")
+    if not customerName:
+        return jsonify({"status": "error", "message": "Missing customerName"}), 400
 
-    doc_ref = db.collection("Order").document(phone)
+    doc_ref = db.collection("Order").document(customerName)
 
+    # เพิ่มค่า Preorder
     doc_ref.update({
         "Preorder": firestore.Increment(1)
     })
 
     return jsonify({"status": "success"})
+
 #----------------------------------------------
 
 
