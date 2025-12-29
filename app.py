@@ -698,8 +698,8 @@ def get_modesonline():
     if not shopname:
         return jsonify([])  # ถ้าไม่มี shopname ส่งกลับ empty list
 
-    # folder แม่: shop1/เครื่องปรุงรส/
-    prefix = f"{shopname}/เครื่องปรุงรส/"
+    # folder แม่: shop1/
+    prefix = f"{shopname}/"
 
     blobs = bucket.list_blobs(prefix=prefix)
     folder_names = set()
@@ -707,7 +707,7 @@ def get_modesonline():
     for blob in blobs:
         # เอา prefix ออก
         name = blob.name.replace(prefix, "")
-        # ตัวอย่าง: "ซอส/ซอสพริก.jpg"
+        # ตัวอย่าง: "เครื่องปรุงรส/ซอส/ซอสพริก.jpg"
         if "/" in name:
             folder = name.split("/")[0]
             if folder:
@@ -715,6 +715,7 @@ def get_modesonline():
 
     # ส่งกลับ List<string> ของ folder ลูกทั้งหมด
     return jsonify(sorted(list(folder_names)))
+
 
 #---------------------------------------------
 @app.route("/get_preorder", methods=["GET"])
