@@ -13,6 +13,7 @@ from werkzeug.security import generate_password_hash, check_password_hash
 #-------------------------------------
 import qrcode
 import io
+import uuid
  
 INSTALL_URL = "https://jai.app/install"
 
@@ -76,6 +77,41 @@ def edit_image():
 
     except Exception as e:
         traceback.print_exc()
+        return jsonify({"error": str(e)}), 500
+    #--------------------- บันทึกจาก สร้างสินค้าด้วยตัวเอง -------
+@app.route("/upload_product_image", methods=["POST"])
+def upload_product_image():
+    try:
+        folder_name = request.form.get("folder_name")
+        picturename = request.form.get("picturename")
+        image = request.files.get("image")
+
+        if not folder_name or not picturename or not image:
+            return jsonify({"error": "missing data"}), 400
+
+        bucket = storage.bucket()
+
+        # 🔐 1) สร้างชื่อไฟล์ไม่ซ้ำ (วางตรงนี้)
+        filename = f"{picturename}_{uuid.uuid4().hex[:6]}.jpg"
+
+        # 📂 2) ต่อ path จาก modeproduct
+        blob_path = f"modeproduct/{folder_name}/{filename}"
+        blob = bucket.blob(blob_path)
+
+        # ⬆️ 3) upload
+        blob.upload_from_file(
+            image,
+            content_type="image/jpeg"
+        )
+
+        blob.make_public()
+
+        return jsonify({
+            "message": "upload success",
+            "image_url": blob.public_url
+        })
+
+    except Exception as e:
         return jsonify({"error": str(e)}), 500
 
 # --------------------------- View Images ---------------------------
@@ -634,23 +670,31 @@ def delete_order():
 #--------------------------------------
 @app.route("/get_modes", methods=["GET"])
 def get_modes():
+    shopname = request.args.get("shopname")
+
+    if not shopname:
+        return jsonify([])
+
     bucket = storage.bucket()
-    blobs = bucket.list_blobs(prefix="modeproduct/")
+
+    # ✅ prefix แค่ shopname
+    prefix = f"{shopname}/"
+    blobs = bucket.list_blobs(prefix=prefix)
 
     folder_names = set()
 
     for blob in blobs:
-        name = blob.name.replace("modeproduct/", "")
+        # ตัด shopname/ ออก
+        name = blob.name.replace(prefix, "")
+
+        # name = เครื่องดื่ม/โค้ก_xxx.jpg
         if "/" in name:
             folder = name.split("/")[0]
             if folder:
                 folder_names.add(folder)
 
-    return jsonify({
-        "status": "success",
-        "modes": sorted(list(folder_names))
-    })
-
+    # ✅ ส่งกลับ List<string> ตรง ๆ
+    return jsonify(sorted(list(folder_names)))
 #---------------------------------------------
 @app.route("/get_preorder", methods=["GET"])
 def get_preorder():
