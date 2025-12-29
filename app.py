@@ -670,31 +670,27 @@ def delete_order():
 #--------------------------------------
 @app.route("/get_modes", methods=["GET"])
 def get_modes():
-    shopname = request.args.get("shopname")
-
-    if not shopname:
-        return jsonify([])
-
     bucket = storage.bucket()
 
-    # ✅ prefix แค่ shopname
-    prefix = f"{shopname}/"
+    # folder แม่
+    prefix = "modeproduct/"
     blobs = bucket.list_blobs(prefix=prefix)
 
     folder_names = set()
 
     for blob in blobs:
-        # ตัด shopname/ ออก
+        # ตัด "modeproduct/" ออก
         name = blob.name.replace(prefix, "")
 
-        # name = เครื่องดื่ม/โค้ก_xxx.jpg
+        # name = "สินค้าขายดี/โค้ก.jpg"
         if "/" in name:
             folder = name.split("/")[0]
             if folder:
                 folder_names.add(folder)
 
-    # ✅ ส่งกลับ List<string> ตรง ๆ
+    # ส่งกลับ List<string> ของ folder ลูกทั้งหมด
     return jsonify(sorted(list(folder_names)))
+
 #---------------------------------------------
 @app.route("/get_preorder", methods=["GET"])
 def get_preorder():
