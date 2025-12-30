@@ -724,18 +724,19 @@ def get_modesonline():
 #---------------------------------------------
 @app.route("/get_preorder", methods=["GET"])
 def get_preorder():
-    # รับ customerName แทน phone
     customerName = request.args.get("customerName")
-    
     shopname = request.args.get("shopname")
-    if not customerName:
-        return jsonify({"status": "error", "message": "Missing customerName"}), 400
+
+    if not customerName or not shopname:
+        return jsonify({
+            "status": "error",
+            "message": "Missing customerName or shopname"
+        }), 400
 
     doc_ref = db.collection(shopname).document(customerName)
     doc = doc_ref.get()
 
     if not doc.exists:
-        # ถ้ายังไม่เคยมี → สร้างเริ่มต้น
         doc_ref.set({
             "Preorder": 0,
             "confirmorder": False
@@ -750,6 +751,7 @@ def get_preorder():
         "status": "success",
         "Preorder": data.get("Preorder", 0)
     })
+
 
 #---------------เพิ่ม Preorder ทีละ 1 (ตอนกด BuyPack / BuyUnit) 
 @app.route("/inc_preorder", methods=["POST"])
