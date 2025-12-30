@@ -563,31 +563,73 @@ def get_products_by_mode():
             "message": str(e)
         }), 500
 #------------------------------------
+from google.cloud import firestore
+
 @app.route("/save_order", methods=["POST"])
 def save_order():
     data = request.get_json()
-    customerName = data["customerName"]  # เพราะ MAUI ส่งค่าใน key phone
 
-    productname = data["productname"]
-    timestamp = datetime.utcnow().isoformat()
+    customerName = data.get("customerName")
+    shopname = data.get("shopname")
+    productname = data.get("productname")
 
-    doc_ref = (
-        db.collection("Order")
+    if not customerName or not shopname or not productname:
+        return jsonify({
+            "status": "error",
+            "message": "Missing customerName, shopname, or productname"
+        }), 400
+
+    customer_ref = (
+        db.collection(shopname)
+          .document("customer")
+          .collection("customers")
           .document(customerName)
-          .collection(productname)
-          .document(timestamp)
     )
 
-    doc_ref.set({
+    customer_doc = customer_ref.get()
+    if not customer_doc.exists:
+        return jsonify({"status": "error", "message": "Customer not found"}), 404
+
+    customer_data = customer_doc.to_dict()
+    active_order_id = customer_data.get("activeOrderId")
+
+    if not active_order_id:
+        return jsonify({"status": "error", "message": "No active order"}), 400
+
+    order_ref = (
+        customer_ref
+          .collection("orders")
+          .document(active_order_id)
+    )
+
+    order_doc = order_ref.get()
+    if not order_doc.exists:
+        return jsonify({"status": "error", "message": "Order not found"}), 404
+
+    if order_doc.to_dict().get("status") != "draft":
+        return jsonify({
+            "status": "error",
+            "message": "Order already confirmed"
+        }), 400
+
+    # ✅ บันทึกสินค้าใน items
+    item_ref = (
+        order_ref
+          .collection("items")
+          .document(productname)
+    )
+
+    item_ref.set({
         "productname": productname,
-        "numberproduct": data["numberproduct"],
-        "image_url": data["image_url"],
-        "into_unit": data["into_unit"],
-        "priceproduct": data["priceproduct"],
-        "created_at": firestore.SERVER_TIMESTAMP
-    })
+        "numberproduct": data.get("numberproduct", 0),
+        "image_url": data.get("image_url", ""),
+        "into_unit": data.get("into_unit", ""),
+        "priceproduct": data.get("priceproduct", 0),
+        "updated_at": firestore.SERVER_TIMESTAMP
+    }, merge=True)
 
     return jsonify({"status": "success"})
+
 
     #------------------------------------------
 @app.route("/update_save_order", methods=["POST"])
@@ -748,20 +790,18 @@ def get_preorder():
     # 1️⃣ ถ้ายังไม่มี customer
     if not customer_doc.exists:
         customer_ref.set({
-            "Preorder": 0,
             "activeOrderId": None,
             "createdAt": datetime.utcnow()
         }, merge=True)
 
         customer_doc = customer_ref.get()
 
-    data = customer_doc.to_dict()
-
-    active_order_id = data.get("activeOrderId")
+    customer_data = customer_doc.to_dict()
+    active_order_id = customer_data.get("activeOrderId")
 
     # 2️⃣ ถ้ายังไม่มี order → สร้างใหม่
     if not active_order_id:
-        timestamp_id = str(int(time.time() * 1000))  # เช่น 1703922339123
+        timestamp_id = str(int(time.time() * 1000))
 
         order_ref = (
             customer_ref
@@ -770,10 +810,9 @@ def get_preorder():
         )
 
         order_ref.set({
-            "status": "draft",    # "status": "draft" ยังเพิ่มสินค้าได้  , "status": "confirmed"  // 🔒 ห้ามเพิ่มสินค้า
+            "status": "draft",
             "Preorder": 0,
             "createdAt": datetime.utcnow()
-            
         })
 
         customer_ref.update({
@@ -782,14 +821,21 @@ def get_preorder():
 
         active_order_id = timestamp_id
 
+    # 3️⃣ 🔥 อ่าน Preorder จาก order
+    order_ref = (
+        customer_ref
+          .collection("orders")
+          .document(active_order_id)
+    )
+
+    order_doc = order_ref.get()
+    order_data = order_doc.to_dict() if order_doc.exists else {}
+
     return jsonify({
         "status": "success",
-        "Preorder": data.get("Preorder", 0),
+        "Preorder": order_data.get("Preorder", 0),
         "orderId": active_order_id
     })
-
-
- 
 
 #---------------เพิ่ม Preorder ทีละ 1 (ตอนกด BuyPack / BuyUnit) 
 from google.cloud import firestore
