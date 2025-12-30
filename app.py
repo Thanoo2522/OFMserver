@@ -357,7 +357,7 @@ def register_shop():
     if not shopname or not phone or not password:
         return jsonify({"status": "error", "message": "Missing fields"}), 400
 
-    db.collection(shopname).set({
+    db.collection(shopname).document("mode").set({
         "shopname": shopname,
         "phone": phone,
         "password": password
