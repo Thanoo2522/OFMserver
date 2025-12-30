@@ -445,12 +445,14 @@ def save_product_price():
         # ===============================
         # 3️⃣ บันทึก Firestore
  
+ 
         # ===============================
         db.collection(shopname) \
           .document("mode") \
           .collection(textmode) \
-          .document("product") \
-          .collection(productname) \
+            .document("product") \
+            .collection("products") \
+            .document(productname) \
           .set({
               
               "num_remainpack": num_remainpack,
