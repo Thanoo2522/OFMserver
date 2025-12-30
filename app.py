@@ -786,7 +786,7 @@ def register_customer():
             return jsonify({"status": "error", "message": "Phone number must be 10 digits"}), 400
 
         customer_ref = (
-            db.collection("customers")
+            db.collection(shopname)
               .document(customer_name)
  
         )
@@ -856,7 +856,8 @@ def get_customer():
 def login_customer():
     try:
         data = request.get_json()
-
+    
+        shopname = data.get("shop")
         customer_name = data.get("customer_name")
         password = data.get("password")
 
@@ -867,7 +868,7 @@ def login_customer():
             }), 400
 
         customer_ref = (
-            db.collection("customers")
+            db.collection(shopname)
               .document(customer_name)
         )
 
