@@ -733,20 +733,42 @@ def get_preorder():
             "message": "Missing customerName or shopname"
         }), 400
 
-    doc_ref = db.collection(shopname).document("customer").collection("customers").document(customerName)
+    doc_ref = (
+        db.collection(shopname)
+          .document("customer")
+          .collection("customers")
+          .document(customerName)
+    )
+
     doc = doc_ref.get()
 
+    # 🔹 กรณี: ยังไม่มี customer document
     if not doc.exists:
         doc_ref.set({
             "Preorder": 0,
             "confirmorder": False
-        })
+        }, merge=True)
+
         return jsonify({
             "status": "success",
             "Preorder": 0
         })
 
+    # 🔹 กรณี: มี document แล้ว แต่ยังไม่มี Preorder
     data = doc.to_dict()
+
+    if "Preorder" not in data:
+        doc_ref.set({
+            "Preorder": 0,
+            "confirmorder": False
+        }, merge=True)
+
+        return jsonify({
+            "status": "success",
+            "Preorder": 0
+        })
+
+    # 🔹 กรณี: มีครบแล้ว
     return jsonify({
         "status": "success",
         "Preorder": data.get("Preorder", 0)
