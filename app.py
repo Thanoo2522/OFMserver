@@ -447,10 +447,10 @@ def save_product_price():
  
         # ===============================
         db.collection(shopname) \
-          .collection("mode") \
-          .document(textmode) \
-          .collection("product") \
-          .document(productname) \
+          .document("mode") \
+          .collection(textmode) \
+          .document("product") \
+          .collection(productname) \
           .set({
               
               "num_remainpack": num_remainpack,
