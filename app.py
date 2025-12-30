@@ -357,7 +357,7 @@ def register_shop():
     if not shopname or not phone or not password:
         return jsonify({"status": "error", "message": "Missing fields"}), 400
 
-    db.collection("Shopname").document(shopname).set({
+    db.collection(shopname).set({
         "shopname": shopname,
         "phone": phone,
         "password": password
@@ -444,9 +444,9 @@ def save_product_price():
 
         # ===============================
         # 3️⃣ บันทึก Firestore
+ 
         # ===============================
-        db.collection("Shopname") \
-          .document(shopname) \
+        db.collection(shopname) \
           .collection("mode") \
           .document(textmode) \
           .collection("product") \
