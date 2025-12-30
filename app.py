@@ -725,10 +725,12 @@ def get_modesonline():
 def get_preorder():
     # รับ customerName แทน phone
     customerName = request.args.get("customerName")
+    
+    shopname = request.args.get("shopname")
     if not customerName:
         return jsonify({"status": "error", "message": "Missing customerName"}), 400
 
-    doc_ref = db.collection("Order").document(customerName)
+    doc_ref = db.collection(shopname).document(customerName)
     doc = doc_ref.get()
 
     if not doc.exists:
