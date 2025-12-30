@@ -876,6 +876,8 @@ def login_customer():
 
         customer_ref = (
             db.collection(shopname)
+              .document("customer")
+              .collection("customers")
               .document(customer_name)
         )
 
