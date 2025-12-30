@@ -722,6 +722,8 @@ def get_modesonline():
 
 
 #---------------------------------------------
+from datetime import datetime
+
 @app.route("/get_preorder", methods=["GET"])
 def get_preorder():
     customerName = request.args.get("customerName")
@@ -733,26 +735,65 @@ def get_preorder():
             "message": "Missing customerName or shopname"
         }), 400
 
-    doc_ref = (
+    customer_ref = (
         db.collection(shopname)
           .document("customer")
           .collection("customers")
           .document(customerName)
     )
 
-    doc = doc_ref.get()
+    customer_doc = customer_ref.get()
 
-    # 🔹 กรณี: ยังไม่มี customer document
-    if not doc.exists:
-        doc_ref.set({
+    # ===============================
+    # 1️⃣ ถ้ายังไม่มี customer → สร้าง
+    # ===============================
+    if not customer_doc.exists:
+        customer_ref.set({
             "Preorder": 0,
-            "confirmorder": False
+            "activeOrderId": None,
+            "createdAt": datetime.utcnow()
         }, merge=True)
 
-        return jsonify({
-            "status": "success",
-            "Preorder": 0
+        customer_doc = customer_ref.get()
+
+    customer_data = customer_doc.to_dict()
+
+    # ===============================
+    # 2️⃣ ตรวจ active order
+    # ===============================
+    active_order_id = customer_data.get("activeOrderId")
+
+    # ===============================
+    # 3️⃣ ถ้ายังไม่มี order ที่เปิดอยู่ → สร้างใหม่
+    # ===============================
+    if not active_order_id:
+        order_ref = (
+            customer_ref
+              .collection("orders")
+              .document()   # 🔥 auto orderId
+        )
+
+        order_ref.set({
+            "status": "draft",
+            "createdAt": datetime.utcnow(),
+            "total": 0
         })
+
+        active_order_id = order_ref.id
+
+        customer_ref.update({
+            "activeOrderId": active_order_id
+        })
+
+    # ===============================
+    # 4️⃣ ส่งข้อมูลกลับ
+    # ===============================
+    return jsonify({
+        "status": "success",
+        "Preorder": customer_data.get("Preorder", 0),
+        "orderId": active_order_id
+    })
+
 
     # 🔹 กรณี: มี document แล้ว แต่ยังไม่มี Preorder
     data = doc.to_dict()
