@@ -522,12 +522,13 @@ def get_products_by_mode():
                 "message": "Missing shopname or textmode"
             }), 400
 
-        products_ref = db.collection("Shopname") \
-            .document(shopname) \
-            .collection("mode") \
-            .document(textmode) \
-            .collection("product")
-
+        products_ref = db.collection(shopname) \
+          .document("mode") \
+          .collection(textmode) \
+            .document("product") \
+            .collection("products") \
+             
+          
         docs = products_ref.stream()
 
         products = []
