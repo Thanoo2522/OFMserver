@@ -872,37 +872,86 @@ def get_orders():
 #----------------------------------------------
 @app.route("/delete_order", methods=["POST"])
 def delete_order():
-    data = request.get_json()
+    try:
+        data = request.get_json()
 
-    phone = data["phone"]
-    productname = data["productname"]
-    timestamp = data["timestamp"]
+        shopname = data.get("shopname")
+        customer_name = data.get("customerName")
+        order_id = data.get("orderId")
+        item_id = data.get("itemId")
 
-    order_doc_ref = db.collection("Order").document(phone)
+        # 🔥 validate
+        if not all([shopname, customer_name, order_id, item_id]):
+            return jsonify({
+                "status": "error",
+                "message": "Missing required fields"
+            }), 400
 
-    # 🔥 1. ลบรายการสินค้า
-    product_doc_ref = (
-        order_doc_ref
-        .collection(productname)
-        .document(timestamp)
-    )
-    product_doc_ref.delete()
+        # ===============================
+        # path:
+        # /{shopname}/customer/customers/{customerName}/orders/{orderId}/items/{itemId}
+        # ===============================
+        item_ref = (
+            db.collection(shopname)
+              .document("customer")
+              .collection("customers")
+              .document(customer_name)
+              .collection("orders")
+              .document(order_id)
+              .collection("items")
+              .document(item_id)
+        )
 
-    # 🔥 2. ลดค่า Preorder ลง 1 (แต่ไม่ให้ติดลบ)
-    order_doc = order_doc_ref.get()
-    if order_doc.exists:
-        current_preorder = order_doc.to_dict().get("Preorder", 0)
-        new_preorder = max(current_preorder - 1, 0)
+        # 🔎 ตรวจว่ามี item จริง
+        if not item_ref.get().exists:
+            return jsonify({
+                "status": "error",
+                "message": "Item not found"
+            }), 404
 
-        order_doc_ref.update({
-            "Preorder": new_preorder
+        # 🔥 ลบ item
+        item_ref.delete()
+
+        # (OPTIONAL) 🔢 อัปเดตจำนวน item ทั้งหมดใน order
+        items_ref = (
+            db.collection(shopname)
+              .document("customer")
+              .collection("customers")
+              .document(customer_name)
+              .collection("orders")
+              .document(order_id)
+              .collection("items")
+        )
+
+        item_count = len(list(items_ref.stream()))
+
+        # บันทึกจำนวนคงเหลือใน order document (ถ้าคุณใช้)
+        order_ref = (
+            db.collection(shopname)
+              .document("customer")
+              .collection("customers")
+              .document(customer_name)
+              .collection("orders")
+              .document(order_id)
+        )
+
+        order_ref.set({
+            "item_count": item_count,
+            "updated_at": firestore.SERVER_TIMESTAMP
+        }, merge=True)
+
+        return jsonify({
+            "status": "success",
+            "message": "Item deleted successfully",
+            "item_count": item_count
         })
 
-    return jsonify({
-        "status": "success",
-        "message": "Order deleted and preorder updated",
-        "Preorder": new_preorder
-    })
+    except Exception as e:
+        print("🔥 ERROR delete_order:", e)
+        return jsonify({
+            "status": "error",
+            "message": str(e)
+        }), 500
 
 #--------------------------------------
 @app.route("/get_modes", methods=["GET"])
