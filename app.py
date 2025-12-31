@@ -767,29 +767,64 @@ def update_save_order():
 #---------------------------------------
 @app.route("/get_orders", methods=["GET"])
 def get_orders():
-    phone = request.args.get("phone")
-    orders = []
+    try:
+        # ===============================
+        # รับค่าจาก query string
+        # ===============================
+        shopname = request.args.get("shopname")          # newshop
+        customer_name = request.args.get("customerName")# Tana
+        order_id = request.args.get("orderId")           # 1767145092386
 
-    # ดึงทุก collection ของ phone
-    docs = db.collection("Order").document(phone).collections()
-    for product_col in docs:
-        for doc in product_col.stream():
+        if not shopname or not customer_name or not order_id:
+            return jsonify({
+                "status": "error",
+                "message": "Missing shopname, customerName or orderId"
+            }), 400
+
+        # ===============================
+        # Firestore path ที่ถูกต้องจริง
+        # /newshop/customer/customers/{Tana}/orders/{orderId}/items
+        # ===============================
+        items_ref = (
+            db.collection(shopname)          # newshop
+              .document("customer")
+              .collection("customers")
+              .document(customer_name)
+              .collection("orders")
+              .document(order_id)
+              .collection("items")
+        )
+
+        items = []
+
+        docs = list(items_ref.stream())
+        print(f"🔥 FOUND ITEMS: {len(docs)}")
+
+        for doc in docs:
             data = doc.to_dict()
-            data["timestamp"] = doc.id  # 🔥 เก็บ document id เป็น timestamp
+            data["itemId"] = doc.id   # 🔥 สำคัญ ใช้ลบ / แก้ไข item
 
-            # แปลง Firestore Timestamp → ISO string
+            # แปลง Firestore Timestamp
             created = data.get("created_at")
             if created:
                 data["created_at"] = created.isoformat()
             else:
                 data["created_at"] = None
 
-            orders.append(data)
+            items.append(data)
 
-    return jsonify({
-        "status": "success",
-        "orders": orders
-    })
+        return jsonify({
+            "status": "success",
+            "items": items
+        })
+
+    except Exception as e:
+        print("🔥 ERROR get_orders:", e)
+        return jsonify({
+            "status": "error",
+            "message": str(e)
+        }), 500
+
 #----------------------------------------------
 @app.route("/delete_order", methods=["POST"])
 def delete_order():
