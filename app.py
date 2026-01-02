@@ -658,25 +658,34 @@ def confirm_order():
 #----------------------สร้างการแจ้งเติอน ให้ร้านค้า--------------
 @app.route("/get_notifications", methods=["GET"])
 def get_notifications():
-    shopname = request.args.get("shopname")
+    try:
+        shopname = request.args.get("shopname")
 
-    if not shopname:
-        return jsonify([])
+        if not shopname:
+            return jsonify([])
 
-    noti_ref = (
-        db.collection(shopname)
-          .collection("notifications")
-          .order_by("createdAt", direction=firestore.Query.DESCENDING)
-          .limit(20)
-    )
+        notifications_ref = (
+            db.collection(shopname)
+              .document("system")
+              .collection("notifications")
+              .order_by("createdAt", direction=firestore.Query.DESCENDING)
+              .limit(50)
+        )
 
-    results = []
-    for doc in noti_ref.stream():
-        d = doc.to_dict()
-        d["id"] = doc.id
-        results.append(d)
+        docs = notifications_ref.stream()
 
-    return jsonify(results)
+        result = []
+        for doc in docs:
+            data = doc.to_dict()
+            data["id"] = doc.id
+            result.append(data)
+
+        return jsonify(result)
+
+    except Exception as e:
+        print("🔥 ERROR get_notifications:", e)
+        return jsonify({"error": str(e)}), 500
+
 
 #------------------------------------
 @app.route("/save_order", methods=["POST"])
