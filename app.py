@@ -564,6 +564,8 @@ def get_products_by_mode():
             "message": str(e)
         }), 500
     #-----------------------ยืนยันการสั้งซื้อสินค้า-------------
+from google.cloud import firestore
+
 @app.route("/confirm_order", methods=["POST"])
 def confirm_order():
     try:
@@ -625,14 +627,14 @@ def confirm_order():
             "activeOrderId": ""
         })
 
-        # 🔔 4️⃣ เพิ่ม notification ให้ร้านค้า (สร้างอัตโนมัติ)
-        notify_ref = (
+        # 🔔 4️⃣ เพิ่ม notification ให้ร้านค้า (✔ ปลอด error)
+        notifications_ref = (
             db.collection(shopname)
+              .document("system")
               .collection("notifications")
-              .document()
         )
 
-        notify_ref.set({
+        notifications_ref.add({
             "type": "order_confirmed",
             "orderId": activeOrderId,
             "customerName": customerName,
@@ -652,6 +654,7 @@ def confirm_order():
             "status": "error",
             "message": str(e)
         }), 500
+
 #----------------------สร้างการแจ้งเติอน ให้ร้านค้า--------------
 @app.route("/get_notifications", methods=["GET"])
 def get_notifications():
