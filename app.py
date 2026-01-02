@@ -686,6 +686,32 @@ def get_notifications():
         print("🔥 ERROR get_notifications:", e)
         return jsonify({"error": str(e)}), 500
 
+#---------------------ตั้งเมื่ออ่าน order ให้  "status": "read" ----------------
+@app.route("/mark_notification_read", methods=["POST"])
+def mark_notification_read():
+    try:
+        data = request.get_json()
+        shopname = data.get("shopname")
+        notificationId = data.get("notificationId")
+
+        if not shopname or not notificationId:
+            return jsonify({"status": "error"}), 400
+
+        notif_ref = (
+            db.collection(shopname)
+              .document("system")
+              .collection("notifications")
+              .document(notificationId)
+        )
+
+        notif_ref.update({
+            "status": "read"
+        })
+
+        return jsonify({"status": "success"})
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 #------------------------------------
 @app.route("/save_order", methods=["POST"])
