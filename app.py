@@ -620,9 +620,24 @@ def confirm_order():
         if count > 0:
             batch.commit()
 
-        # ⭐ สำคัญ: ล้าง activeOrderId
+        # 3️⃣ ล้าง activeOrderId ของ customer
         customer_ref.update({
             "activeOrderId": ""
+        })
+
+        # 🔔 4️⃣ เพิ่ม notification ให้ร้านค้า (สร้างอัตโนมัติ)
+        notify_ref = (
+            db.collection(shopname)
+              .collection("notifications")
+              .document()
+        )
+
+        notify_ref.set({
+            "type": "order_confirmed",
+            "orderId": activeOrderId,
+            "customerName": customerName,
+            "status": "unread",
+            "createdAt": firestore.SERVER_TIMESTAMP
         })
 
         return jsonify({
@@ -637,6 +652,28 @@ def confirm_order():
             "status": "error",
             "message": str(e)
         }), 500
+#----------------------สร้างการแจ้งเติอน ให้ร้านค้า--------------
+@app.route("/get_notifications", methods=["GET"])
+def get_notifications():
+    shopname = request.args.get("shopname")
+
+    if not shopname:
+        return jsonify([])
+
+    noti_ref = (
+        db.collection(shopname)
+          .collection("notifications")
+          .order_by("createdAt", direction=firestore.Query.DESCENDING)
+          .limit(20)
+    )
+
+    results = []
+    for doc in noti_ref.stream():
+        d = doc.to_dict()
+        d["id"] = doc.id
+        results.append(d)
+
+    return jsonify(results)
 
 #------------------------------------
 @app.route("/save_order", methods=["POST"])
