@@ -606,7 +606,7 @@ def confirm_order():
             "confirmedAt": firestore.SERVER_TIMESTAMP
         })
 
-        # 2️⃣ update status ของ items ทุกตัว
+        # 2️⃣ update status items ทุกตัว
         items_ref = order_ref.collection("items")
         items = items_ref.stream()
 
@@ -627,14 +627,15 @@ def confirm_order():
             "activeOrderId": ""
         })
 
-        # 🔔 4️⃣ เพิ่ม notification ให้ร้านค้า (✔ ปลอด error)
-        notifications_ref = (
+        # 🔔 4️⃣ สร้าง notification โดยใช้ activeOrderId เป็น document id
+        notif_ref = (
             db.collection(shopname)
               .document("system")
               .collection("notifications")
+              .document(activeOrderId)   # ⭐ ตรงนี้
         )
 
-        notifications_ref.add({
+        notif_ref.set({
             "type": "order_confirmed",
             "orderId": activeOrderId,
             "customerName": customerName,
@@ -685,6 +686,36 @@ def get_notifications():
     except Exception as e:
         print("🔥 ERROR get_notifications:", e)
         return jsonify({"error": str(e)}), 500
+        
+        #-------------------------------
+@app.route("/get_notification_modes", methods=["GET"])
+def get_notification_modes():
+    try:
+        shopname = request.args.get("shopname")
+
+        if not shopname:
+            return jsonify([])
+
+        modes_ref = (
+            db.collection(shopname)
+              .document("system")
+              .collection("notification_modes")
+        )
+
+        docs = modes_ref.stream()
+
+        result = []
+        for doc in docs:
+            data = doc.to_dict()
+            data["id"] = doc.id
+            result.append(data)
+
+        return jsonify(result)
+
+    except Exception as e:
+        print("🔥 ERROR get_notification_modes:", e)
+        return jsonify({"error": str(e)}), 500
+
 
 #---------------------ตั้งเมื่ออ่าน order ให้  "status": "read" ----------------
 @app.route("/mark_notification_read", methods=["POST"])
