@@ -924,17 +924,18 @@ def set_item_prepare():
         shopname = data.get("shopname")
         customer_name = data.get("customerName")
         order_id = data.get("orderId")
+        item_id = data.get("itemId")
         prepare = data.get("prepare")  # "prepared"
 
         # 🔍 validate
-        if not all([shopname, customer_name, order_id, prepare]):
+        if not all([shopname, customer_name, order_id, item_id, prepare]):
             return jsonify({
                 "status": "error",
                 "message": "missing required fields"
             }), 400
 
-        # 🔥 items collection path
-        items_ref = (
+        # 🔥 Firestore path
+        item_ref = (
             db.collection(shopname)
               .document("customer")
               .collection("customers")
@@ -942,23 +943,18 @@ def set_item_prepare():
               .collection("orders")
               .document(order_id)
               .collection("items")
+              .document(item_id)
         )
 
-        docs = items_ref.stream()
-
-        updated_count = 0
-
-        for doc in docs:
-            items_ref.document(doc.id).update({
-                "prepare": prepare
-            })
-            updated_count += 1
+        # 🔄 update prepare status
+        item_ref.update({
+            "prepare": prepare
+        })
 
         return jsonify({
             "status": "success",
-            "message": "all items updated",
-            "orderId": order_id,
-            "updatedItems": updated_count,
+            "message": "item prepare updated",
+            "itemId": item_id,
             "prepare": prepare
         })
 
