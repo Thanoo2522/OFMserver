@@ -114,8 +114,8 @@ def register_admin():
         }), 500
 
 #----------------- check password เพื่อเข้าหน้า singmasterpage  ----
-@app.route("/master_password", methods=["POST"])
-def master_password():
+@app.route("/admin_password", methods=["POST"])
+def admin_password():
     try:
         data = request.get_json()
         if not data:
@@ -124,17 +124,17 @@ def master_password():
                 "message": "No JSON received"
             }), 400
 
-        ofm_name = data.get("ofm_name")
-        password = data.get("password")
+        adminname = data.get("admin_name")
+        adminpassword = data.get("adminpassword")
 
-        if not ofm_name or not password:
+        if not adminname or not  adminpassword:
             return jsonify({
                 "status": "error",
                 "message": "ข้อมูลไม่ครบ"
             }), 400
 
         # 🔹 อ่าน Firestore
-        doc_ref = db.collection("registeradminOFM").document(ofm_name)
+        doc_ref = db.collection("registeradminOFM").document(adminname)
         doc = doc_ref.get()
 
         if not doc.exists:
@@ -146,7 +146,7 @@ def master_password():
         saved_hashed_password = doc_data.get("addminpass")
 
         # 🔐 เช็ครหัสผ่าน (ถูกต้อง)
-        if not check_password_hash(saved_hashed_password, password):
+        if not check_password_hash(saved_hashed_password, adminpassword):
             return jsonify({
                 "status": "wrong_password"
             }), 200
@@ -163,8 +163,8 @@ def master_password():
             "message": str(e)
         }), 500
  #-------------------บันทึกชื่อ ofmname จากการตั้งชื่อ ตลากสดอออนไลด์ -----------------------
-@app.route("/register_adminmaster", methods=["POST"])
-def register_adminmaster():
+@app.route("/register_ofmname", methods=["POST"])
+def register_ofmname():
     try:
         data = request.get_json()
         ofmname = data.get("ofmname")
