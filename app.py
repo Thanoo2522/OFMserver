@@ -125,26 +125,25 @@ def master_password():
                 "message": "ข้อมูลไม่ครบ"
             }), 400
 
-        # 🔹 อ่าน document จาก Firestore
+        # 🔹 อ่าน Firestore
         doc_ref = db.collection("registeradminOFM").document(shopname)
         doc = doc_ref.get()
 
-        # 🔸 ไม่พบร้าน
         if not doc.exists:
             return jsonify({
                 "status": "not_found"
             }), 200
 
         doc_data = doc.to_dict()
-        saved_password = doc_data.get("addminpass")
+        saved_hashed_password = doc_data.get("addminpass")
 
-        # 🔸 รหัสผ่านไม่ถูกต้อง
-        if password != saved_password:
+        # 🔐 เช็ครหัสผ่าน (ถูกต้อง)
+        if not check_password_hash(saved_hashed_password, password):
             return jsonify({
                 "status": "wrong_password"
             }), 200
 
-        # 🔹 ผ่าน
+        # ✅ ผ่าน
         return jsonify({
             "status": "success",
             "adminadd": doc_data.get("adminadd", "")
