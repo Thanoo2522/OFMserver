@@ -22,8 +22,8 @@ INSTALL_URL = "https://jai.app/install"
 app = Flask(__name__)
 
 # ------------------- Firebase Config -------------------
-RTD_URL1 = "https://retailstore-4780f-default-rtdb.asia-southeast1.firebasedatabase.app"
-BUCKET_NAME = "retailstore-4780f.firebasestorage.app"
+RTD_URL1 = "https://bestofm-a31a0-default-rtdb.asia-southeast1.firebasedatabase.app/" # realtime database
+BUCKET_NAME = "bestofm-a31a0.firebasestorage.app"
 
 service_account_json = os.environ.get("FIREBASE_SERVICE_KEY")
 if not service_account_json:
@@ -44,41 +44,7 @@ rtdb_ref = rtdb.reference("/")
 bucket = storage.bucket()
 
 # ---------------- OpenAI -------------------
-OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY")
-client = OpenAI(api_key=OPENAI_API_KEY)
-
-# --------------------------- IMAGE EDIT ---------------------------
-@app.route("/edit_image", methods=["POST"])
-def edit_image():
-    try:
-        if "image" not in request.files:
-            return jsonify({"error": "Missing file 'image'"}), 400
-
-        image_file = request.files["image"]
-        mime = image_file.mimetype or "image/jpeg"
-
-        edited = client.images.edit(
-            model="gpt-image-1",
-            image=("image.jpg", image_file.stream, mime),
-            prompt=(
-                "expand canvas on top and bottom with pure white background, "
-                "keep original subject unchanged, clean full white background, "
-                "sharpen, enhance clarity, improve lighting"
-            ),
-            size="1024x1024"
-        )
-
-        result_bytes = base64.b64decode(edited.data[0].b64_json)
-
-        return send_file(
-            BytesIO(result_bytes),
-            mimetype="image/png",
-            as_attachment=False
-        )
-
-    except Exception as e:
-        traceback.print_exc()
-        return jsonify({"error": str(e)}), 500
+ 
     #--------------------- บันทึกจาก สร้างสินค้าด้วยตัวเอง -------
 @app.route("/upload_product_image", methods=["POST"])
 def upload_product_image():
