@@ -66,22 +66,32 @@ def register_admin():
                 "message": "ข้อมูลไม่ครบ"
             }), 400
 
+        # 🔹 รหัสผ่าน: ตัวเลข 6 หลัก
+        if not admin_pass.isdigit() or len(admin_pass) != 6:
+            return jsonify({
+                "status": "error",
+                "message": "รหัสผ่านต้องเป็นตัวเลข 6 หลักเท่านั้น"
+            }), 200
+
         doc_ref = db.collection("registeradminOFM").document(admin_name)
         doc = doc_ref.get()
 
-        # 🔹 เช็คชื่อซ้ำ
+        # 🔹 ชื่อซ้ำ
         if doc.exists:
             return jsonify({
                 "status": "error",
                 "message": "ชื่อผู้ดูแลซ้ำ กรุณาตั้งชื่อใหม่"
-            }), 200   # ❗ ส่ง 200 เพื่อให้ MAUI อ่าน message ได้
+            }), 200
 
-        # 🔹 บันทึกข้อมูล
+        # 🔐 เข้ารหัสรหัสผ่าน
+        hashed_pass = generate_password_hash(admin_pass)
+
+        # 🔹 บันทึก Firestore
         doc_ref.set({
             "admin_name": admin_name,
             "adminadd": admin_add,
             "adminphone": admin_phone,
-            "addminpass": admin_pass,  # ⚠️ แนะนำ hash ใน production
+            "addminpass": hashed_pass,   # ✅ เก็บแบบ hash
             "created_at": firestore.SERVER_TIMESTAMP
         })
 
@@ -90,12 +100,12 @@ def register_admin():
         }), 200
 
     except Exception as e:
-       # logging.exception("🔥 register_admin error")
         return jsonify({
             "status": "error",
             "message": str(e)
         }), 500
 
 
+#----------------------------------------------
 if __name__ == "__main__":
     app.run(debug=True)
