@@ -105,7 +105,56 @@ def register_admin():
             "message": str(e)
         }), 500
 
+#----------------- check password เพื่อเข้าหน้า singmasterpage  ----
+@app.route("/master_password", methods=["POST"])
+def master_password():
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({
+                "status": "error",
+                "message": "No JSON received"
+            }), 400
 
+        shopname = data.get("shopname")
+        password = data.get("password")
+
+        if not shopname or not password:
+            return jsonify({
+                "status": "error",
+                "message": "ข้อมูลไม่ครบ"
+            }), 400
+
+        # 🔹 อ่าน document จาก Firestore
+        doc_ref = db.collection("registeradminOFM").document(shopname)
+        doc = doc_ref.get()
+
+        # 🔸 ไม่พบร้าน
+        if not doc.exists:
+            return jsonify({
+                "status": "not_found"
+            }), 200
+
+        doc_data = doc.to_dict()
+        saved_password = doc_data.get("addminpass")
+
+        # 🔸 รหัสผ่านไม่ถูกต้อง
+        if password != saved_password:
+            return jsonify({
+                "status": "wrong_password"
+            }), 200
+
+        # 🔹 ผ่าน
+        return jsonify({
+            "status": "success",
+            "adminadd": doc_data.get("adminadd", "")
+        }), 200
+
+    except Exception as e:
+        return jsonify({
+            "status": "error",
+            "message": str(e)
+        }), 500
 #----------------------------------------------
 if __name__ == "__main__":
     app.run(debug=True)
