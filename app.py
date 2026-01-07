@@ -124,7 +124,7 @@ def admin_password():
                 "message": "No JSON received"
             }), 400
 
-        adminname = data.get("admin_name")
+        adminname = data.get("adminname")
         adminpassword = data.get("adminpassword")
 
         if not adminname or not  adminpassword:
