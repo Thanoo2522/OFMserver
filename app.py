@@ -42,7 +42,15 @@ firebase_admin.initialize_app(
 db = firestore.client()
 rtdb_ref = rtdb.reference("/")
 bucket = storage.bucket()
-
+#-----------------------------------------------------------
+def build_prefixes(text):
+    text = text.lower().strip()
+    prefixes = []
+    current = ""
+    for ch in text:
+        current += ch
+        prefixes.append(current)
+    return prefixes
 # ------------ข้อมูลการทงทะเบียนผู้ดูแลระบบ สร้างตลาด fresh market
 @app.route("/register_admin", methods=["POST"])
 def register_admin():
@@ -116,17 +124,17 @@ def master_password():
                 "message": "No JSON received"
             }), 400
 
-        shopname = data.get("shopname")
+        ofm_name = data.get("ofm_name")
         password = data.get("password")
 
-        if not shopname or not password:
+        if not ofm_name or not password:
             return jsonify({
                 "status": "error",
                 "message": "ข้อมูลไม่ครบ"
             }), 400
 
         # 🔹 อ่าน Firestore
-        doc_ref = db.collection("registeradminOFM").document(shopname)
+        doc_ref = db.collection("registeradminOFM").document(ofm_name)
         doc = doc_ref.get()
 
         if not doc.exists:
@@ -154,6 +162,67 @@ def master_password():
             "status": "error",
             "message": str(e)
         }), 500
+ #-------------------บันทึกชื่อ ofmname จากการตั้งชื่อ ตลากสดอออนไลด์ -----------------------
+@app.route("/register_adminmaster", methods=["POST"])
+def register_adminmaster():
+    data = request.get_json()
+    ofmname = data.get("ofmname")
+
+    if not ofmname:
+        return jsonify({
+            "status": "error",
+            "message": "no name"
+        }), 400
+
+    ofmname = ofmname.strip()
+    
+
+    doc_ref = db.collection("OFM_name").document(ofmname)
+    doc = doc_ref.get()
+
+    if doc.exists:
+        return jsonify({
+            "status": "error",
+            "message": "ชื่อร้านซ้ำ"
+        }), 200
+
+    doc_ref.set({
+        "OFM_name": ofmname,
+        "OFM_name_lower": ofmname.lower(),
+        "search_prefix": build_prefixes(ofmname),
+        "created_at": firestore.SERVER_TIMESTAMP
+    })
+
+    return jsonify({
+        "status": "success",
+        "message": "บันทึกสำเร็จ"
+    }), 200
+
+ #-------------------ระบบค้าหา adminmastername   ตลากสดอออนไลด์ ------------ 
+@app.route("/search_adminmaster", methods=["GET"])
+def search_adminmaster():
+    keyword = request.args.get("q", "").strip().lower()
+
+    if not keyword:
+        return jsonify([])
+
+    results = (
+        db.collection("OFM_name")
+        .where("search_prefix", "array_contains", keyword)
+        .limit(50)
+        .stream()
+    )
+
+    data = []
+    for doc in results:
+        d = doc.to_dict()
+        data.append({
+            "OFM_name": d.get("OFM_name")
+        })
+
+    return jsonify(data)
+
+
 #----------------------------------------------
 if __name__ == "__main__":
     app.run(debug=True)
