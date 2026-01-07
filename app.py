@@ -165,38 +165,55 @@ def master_password():
  #-------------------บันทึกชื่อ ofmname จากการตั้งชื่อ ตลากสดอออนไลด์ -----------------------
 @app.route("/register_adminmaster", methods=["POST"])
 def register_adminmaster():
-    data = request.get_json()
-    ofmname = data.get("ofmname")
+    try:
+        data = request.get_json()
+        ofmname = data.get("ofmname")
 
-    if not ofmname:
+        if not ofmname:
+            return jsonify({
+                "status": "error",
+                "message": "no name"
+            }), 400
+
+        ofmname = ofmname.strip()
+
+        # ---------- Firestore ----------
+        doc_ref = db.collection("OFM_name").document(ofmname)
+        doc = doc_ref.get()
+
+        if doc.exists:
+            return jsonify({
+                "status": "error",
+                "message": "ชื่อร้านซ้ำ"
+            }), 200
+
+        doc_ref.set({
+            "OFM_name": ofmname,
+            "OFM_name_lower": ofmname.lower(),
+            "search_prefix": build_prefixes(ofmname),
+            "created_at": firestore.SERVER_TIMESTAMP
+        })
+
+        # ---------- Firebase Storage ----------
+        bucket = storage.bucket()  # ใช้ default bucket
+        folder_path = f"{ofmname}/.keep"
+
+        blob = bucket.blob(folder_path)
+        blob.upload_from_string(
+            f"init folder {ofmname} at {datetime.utcnow()}",
+            content_type="text/plain"
+        )
+
         return jsonify({
-            "status": "error",
-            "message": "no name"
-        }), 400
-
-    ofmname = ofmname.strip()
-    
-
-    doc_ref = db.collection("OFM_name").document(ofmname)
-    doc = doc_ref.get()
-
-    if doc.exists:
-        return jsonify({
-            "status": "error",
-            "message": "ชื่อร้านซ้ำ"
+            "status": "success",
+            "message": "บันทึกสำเร็จ และสร้างโฟลเดอร์แล้ว"
         }), 200
 
-    doc_ref.set({
-        "OFM_name": ofmname,
-        "OFM_name_lower": ofmname.lower(),
-        "search_prefix": build_prefixes(ofmname),
-        "created_at": firestore.SERVER_TIMESTAMP
-    })
-
-    return jsonify({
-        "status": "success",
-        "message": "บันทึกสำเร็จ"
-    }), 200
+    except Exception as e:
+        return jsonify({
+            "status": "error",
+            "message": str(e)
+        }), 500
 
  #-------------------ระบบค้าหา adminmastername   ตลากสดอออนไลด์ ------------ 
 @app.route("/search_adminmaster", methods=["GET"])
