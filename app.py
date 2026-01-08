@@ -316,7 +316,7 @@ def slave_password():
                 "message": "missing_parameters"
             }), 400
 
-        # 📌 path:
+        # 📌 Firestore path
         # OFM_name/{name_ofm}/partner/{slave_name}
         slave_ref = (
             db.collection("OFM_name")
@@ -334,10 +334,16 @@ def slave_password():
             }), 200
 
         slave_data = doc.to_dict()
-        saved_password = slave_data.get("password")
+        saved_hash = slave_data.get("password_hash")
+
+        # ❌ ไม่มีรหัสในระบบ (กันข้อมูลพัง)
+        if not saved_hash:
+            return jsonify({
+                "status": "wrong_password"
+            }), 200
 
         # ❌ รหัสผ่านไม่ถูก
-        if saved_password != slave_password:
+        if not check_password_hash(saved_hash, slave_password):
             return jsonify({
                 "status": "wrong_password"
             }), 200
