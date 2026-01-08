@@ -223,6 +223,82 @@ def get_images():
         "has_more": end < total,
         "images": images[start:end]
     })
+#---------------------------------------
+@app.route("/register_slave", methods=["POST"])
+def register_slave():
+    try:
+        data = request.json
+
+        name_ofm = data.get("name_ofm")
+        slavename = data.get("slavename")
+        address = data.get("address")
+        phone = data.get("phone")
+        password = data.get("password")
+
+        if not all([name_ofm, slavename, address, phone, password]):
+            return jsonify({
+                "success": False,
+                "message": "ข้อมูลไม่ครบ"
+            }), 400
+
+        # ---------------- Firestore Path ----------------
+        ofm_ref = db.collection("OFM_name").document(name_ofm)
+        slave_ref = (
+            ofm_ref
+            .collection("partner")
+            .document(slavename)
+        )
+
+        # ---------------- Check Duplicate ----------------
+        if slave_ref.get().exists:
+            return jsonify({
+                "success": False,
+                "message": "ชื่อร้านค้าซ้ำ กรุณาตั้งชื่อใหม่"
+            }), 409
+
+        # ---------------- Save Firestore ----------------
+        ofm_ref.set({
+            "OFM_name": name_ofm,
+            "updated_at": datetime.utcnow()
+        }, merge=True)
+
+        slave_ref.set({
+            "slavename": slavename,
+            "address": address,
+            "phone": phone,
+            "password_hash": generate_password_hash(password),
+            "created_at": datetime.utcnow()
+        })
+
+        # ---------------- Create Storage Folder ----------------
+        bucket = storage.bucket()
+
+        # สร้าง folder หลักของ OFM ถ้ายังไม่มี
+        ofm_folder_blob = bucket.blob(f"{name_ofm}/.keep")
+        if not ofm_folder_blob.exists():
+            ofm_folder_blob.upload_from_string(
+                "",
+                content_type="text/plain"
+            )
+
+        # (optional) สร้าง folder ของร้านค้า slave
+        slave_folder_blob = bucket.blob(f"{name_ofm}/{slavename}/.keep")
+        if not slave_folder_blob.exists():
+            slave_folder_blob.upload_from_string(
+                "",
+                content_type="text/plain"
+            )
+
+        return jsonify({
+            "success": True,
+            "message": "ลงทะเบียนสำเร็จ"
+        }), 200
+
+    except Exception as e:
+        return jsonify({
+            "success": False,
+            "message": str(e)
+        }), 500
 
 # ------------------------------------
 if __name__ == "__main__":
