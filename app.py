@@ -130,7 +130,7 @@ def register_admin_full():
                 "message": "ข้อมูลไม่ครบ"
             }), 400
 
-        # ---------- 1️⃣ เช็คชื่อร้านซ้ำ ----------
+        # ---------- 1️⃣ เช็คชื่อ OFM ซ้ำ (สำคัญ) ----------
         ofm_ref = db.collection("OFM_name").document(nameofm)
         if ofm_ref.get().exists:
             return jsonify({
@@ -138,22 +138,14 @@ def register_admin_full():
                 "message": "ชื่อร้านซ้ำ"
             }), 200
 
-        # ---------- 2️⃣ เช็ค admin ซ้ำ ----------
-        admin_ref = db.collection("registeradminOFM").document(admin_name)
-        if admin_ref.get().exists:
-            return jsonify({
-                "status": "error",
-                "message": "ชื่อผู้ดูแลซ้ำ"
-            }), 200
-
-        # ---------- 3️⃣ ตรวจรหัสผ่าน ----------
+        # ---------- 2️⃣ ตรวจรหัสผ่าน ----------
         if not admin_pass.isdigit() or len(admin_pass) != 6:
             return jsonify({
                 "status": "error",
                 "message": "รหัสผ่านต้องเป็นตัวเลข 6 หลัก"
             }), 200
 
-        # ---------- 4️⃣ บันทึก OFM ----------
+        # ---------- 3️⃣ บันทึก OFM ----------
         ofm_ref.set({
             "OFM_name": nameofm,
             "OFM_name_lower": nameofm.lower(),
@@ -161,10 +153,10 @@ def register_admin_full():
             "created_at": firestore.SERVER_TIMESTAMP
         })
 
-        # ---------- 5️⃣ บันทึก Admin ----------
+        # ---------- 4️⃣ บันทึก Admin (ซ้ำได้) ----------
         hashed_pass = generate_password_hash(admin_pass)
 
-        admin_ref.set({
+        db.collection("registeradminOFM").add({
             "nameofm": nameofm,
             "admin_name": admin_name,
             "adminadd": admin_add,
@@ -172,6 +164,11 @@ def register_admin_full():
             "addminpass": hashed_pass,
             "created_at": firestore.SERVER_TIMESTAMP
         })
+
+        # ---------- 5️⃣ สร้าง folder ใน Firebase Storage ----------
+        bucket = storage.bucket()
+        blob = bucket.blob(f"{nameofm}/.keep")
+        blob.upload_from_string("", content_type="text/plain")
 
         return jsonify({
             "status": "success"
@@ -182,6 +179,7 @@ def register_admin_full():
             "status": "error",
             "message": str(e)
         }), 500
+
 
  #-------------------ระบบค้าหา adminmastername   ตลากสดอออนไลด์ ------------ 
 @app.route("/search_adminmaster", methods=["GET"])
