@@ -299,6 +299,63 @@ def register_slave():
             "success": False,
             "message": str(e)
         }), 500
+#------------------------------------
+@app.route("/slave_password", methods=["POST"])
+def slave_password():
+    try:
+        data = request.get_json()
+
+        name_ofm = data.get("name_ofm", "").strip()
+        slave_name = data.get("slave_name", "").strip()
+        slave_password = data.get("slave_password", "").strip()
+
+        # 🔒 validate input
+        if not name_ofm or not slave_name or not slave_password:
+            return jsonify({
+                "status": "error",
+                "message": "missing_parameters"
+            }), 400
+
+        # 📌 path:
+        # OFM_name/{name_ofm}/partner/{slave_name}
+        slave_ref = (
+            db.collection("OFM_name")
+              .document(name_ofm)
+              .collection("partner")
+              .document(slave_name)
+        )
+
+        doc = slave_ref.get()
+
+        # ❌ ไม่พบร้าน
+        if not doc.exists:
+            return jsonify({
+                "status": "not_found"
+            }), 200
+
+        slave_data = doc.to_dict()
+        saved_password = slave_data.get("password")
+
+        # ❌ รหัสผ่านไม่ถูก
+        if saved_password != slave_password:
+            return jsonify({
+                "status": "wrong_password"
+            }), 200
+
+        # ✅ ผ่าน
+        return jsonify({
+            "status": "success",
+            "nameofm": name_ofm,
+            "slavename": slave_name
+        }), 200
+
+    except Exception as e:
+        print("SLAVE PASSWORD ERROR:", str(e))
+        return jsonify({
+            "status": "server_error",
+            "message": str(e)
+        }), 500
+
 
 # ------------------------------------
 if __name__ == "__main__":
