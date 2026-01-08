@@ -1,19 +1,20 @@
 from flask import Flask, request, jsonify
-import os, json
-from datetime import datetime
+import os, json, traceback
 
 import firebase_admin
-from firebase_admin import credentials, firestore, db as rtdb
-from firebase_admin import storage as fb_storage   # 🔹 alias
-
-from google.cloud import storage as gcs_storage    # 🔹 alias
+from firebase_admin import credentials, storage, db as rtdb, firestore
 
 from werkzeug.security import generate_password_hash, check_password_hash
+from datetime import datetime
 
-# -------------------------------------
+# ------------------------------------
+# Flask
+# ------------------------------------
 app = Flask(__name__)
 
-# ------------------- Firebase Config -------------------
+# ------------------------------------
+# Firebase Config
+# ------------------------------------
 RTD_URL1 = "https://bestofm-a31a0-default-rtdb.asia-southeast1.firebasedatabase.app/"
 BUCKET_NAME = "bestofm-a31a0.firebasestorage.app"
 
@@ -31,15 +32,15 @@ firebase_admin.initialize_app(
     }
 )
 
-# ------------------- Clients -------------------
-db = firestore.client()              # ✅ ใช้ได้ ถูกต้อง
+# ✅ ใช้ Firebase Admin เท่านั้น (ไม่มี ADC)
+db = firestore.client()
 rtdb_ref = rtdb.reference("/")
+bucket = storage.bucket()
 
-gcs_client = gcs_storage.Client()    # ✅ FIX จุด error
-bucket = fb_storage.bucket()         # Firebase Storage bucket
-
-# ------------------------------------------------
-def build_prefixes(text):
+# ------------------------------------
+# Utils
+# ------------------------------------
+def build_prefixes(text: str):
     text = text.lower().strip()
     prefixes = []
     current = ""
@@ -48,13 +49,18 @@ def build_prefixes(text):
         prefixes.append(current)
     return prefixes
 
-# ------------------- check password -------------------
+# ------------------------------------
+# Admin Login
+# ------------------------------------
 @app.route("/ofm_password", methods=["POST"])
 def ofm_password():
     try:
         data = request.get_json()
         nameofm = data.get("nameofm")
         adminpassword = data.get("adminpassword")
+
+        if not nameofm or not adminpassword:
+            return jsonify({"status": "error", "message": "ข้อมูลไม่ครบ"}), 400
 
         query = (
             db.collection("registeradminOFM")
@@ -67,28 +73,43 @@ def ofm_password():
         if not admin_doc:
             return jsonify({"status": "not_found"}), 200
 
-        saved_hash = admin_doc.to_dict().get("addminpass")
-        if not check_password_hash(saved_hash, adminpassword):
+        doc_data = admin_doc.to_dict()
+        if not check_password_hash(doc_data.get("addminpass"), adminpassword):
             return jsonify({"status": "wrong_password"}), 200
 
-        return jsonify({"status": "success"}), 200
+        return jsonify({
+            "status": "success",
+            "adminname": doc_data.get("admin_name", ""),
+            "adminadd": doc_data.get("adminadd", "")
+        })
 
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
 
-# ------------------- register admin -------------------
+# ------------------------------------
+# Register Admin + OFM
+# ------------------------------------
 @app.route("/register_admin_full", methods=["POST"])
 def register_admin_full():
     try:
         data = request.get_json()
-        nameofm = data.get("nameofm", "").strip()
 
-        if not nameofm:
+        nameofm = data.get("nameofm", "").strip()
+        admin_name = data.get("adminname")
+        admin_add = data.get("adminadd")
+        admin_phone = data.get("adminphone")
+        admin_pass = data.get("addminpass")
+
+        if not nameofm or not admin_name or not admin_phone or not admin_pass:
             return jsonify({"status": "error", "message": "ข้อมูลไม่ครบ"}), 400
 
+        # check OFM duplicate
         ofm_ref = db.collection("OFM_name").document(nameofm)
         if ofm_ref.get().exists:
             return jsonify({"status": "error", "message": "ชื่อร้านซ้ำ"}), 200
+
+        if not admin_pass.isdigit() or len(admin_pass) != 6:
+            return jsonify({"status": "error", "message": "รหัสผ่านต้อง 6 หลัก"}), 200
 
         ofm_ref.set({
             "OFM_name": nameofm,
@@ -97,16 +118,45 @@ def register_admin_full():
             "created_at": firestore.SERVER_TIMESTAMP
         })
 
-        # 🔹 สร้าง folder ใน Firebase Storage
+        db.collection("registeradminOFM").add({
+            "nameofm": nameofm,
+            "admin_name": admin_name,
+            "adminadd": admin_add,
+            "adminphone": admin_phone,
+            "addminpass": generate_password_hash(admin_pass),
+            "created_at": firestore.SERVER_TIMESTAMP
+        })
+
+        # create storage folder
         blob = bucket.blob(f"{nameofm}/.keep")
         blob.upload_from_string("")
 
-        return jsonify({"status": "success"}), 200
+        return jsonify({"status": "success"})
 
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
 
-# ------------------- โหลดแผงทั้งหมด -------------------
+# ------------------------------------
+# Search OFM
+# ------------------------------------
+@app.route("/search_adminmaster", methods=["GET"])
+def search_adminmaster():
+    keyword = request.args.get("q", "").lower().strip()
+    if not keyword:
+        return jsonify([])
+
+    docs = (
+        db.collection("OFM_name")
+        .where("search_prefix", "array_contains", keyword)
+        .limit(50)
+        .stream()
+    )
+
+    return jsonify([{"OFM_name": d.to_dict().get("OFM_name")} for d in docs])
+
+# ------------------------------------
+# Hierarchical Storage APIs
+# ------------------------------------
 @app.route("/get_shops", methods=["GET"])
 def get_shops():
     ofm = request.args.get("ofm")
@@ -116,34 +166,31 @@ def get_shops():
     prefix = f"{ofm}/"
     shops = set()
 
-    blobs = gcs_client.list_blobs(bucket.name, prefix=prefix)
-
-    for blob in blobs:
+    for blob in bucket.list_blobs(prefix=prefix):
         parts = blob.name.split("/")
         if len(parts) >= 2:
             shops.add(parts[1])
 
-    return jsonify({"shops": sorted(list(shops))})
+    return jsonify({"ofm": ofm, "shops": sorted(shops)})
 
-# ------------------- โหลด mode -------------------
 @app.route("/get_modes", methods=["GET"])
 def get_modes():
     ofm = request.args.get("ofm")
     shop = request.args.get("shop")
 
+    if not ofm or not shop:
+        return jsonify({"error": "missing params"}), 400
+
     prefix = f"{ofm}/{shop}/"
     modes = set()
 
-    blobs = gcs_client.list_blobs(bucket.name, prefix=prefix)
-
-    for blob in blobs:
+    for blob in bucket.list_blobs(prefix=prefix):
         parts = blob.name.split("/")
         if len(parts) >= 3:
             modes.add(parts[2])
 
-    return jsonify({"modes": sorted(list(modes))})
+    return jsonify({"shop": shop, "modes": sorted(modes)})
 
-# ------------------- โหลดรูปแบบ pagination -------------------
 @app.route("/get_images", methods=["GET"])
 def get_images():
     ofm = request.args.get("ofm")
@@ -153,24 +200,30 @@ def get_images():
     page = int(request.args.get("page", 1))
     page_size = int(request.args.get("page_size", 20))
 
+    if not ofm or not shop or not mode:
+        return jsonify({"error": "missing params"}), 400
+
     prefix = f"{ofm}/{shop}/{mode}/"
-    blobs = gcs_client.list_blobs(bucket.name, prefix=prefix)
+    images = []
 
-    images = [
-        f"https://storage.googleapis.com/{bucket.name}/{b.name}"
-        for b in blobs if b.name.lower().endswith(".jpg")
-    ]
+    for blob in bucket.list_blobs(prefix=prefix):
+        if blob.name.lower().endswith(".jpg"):
+            images.append(
+                f"https://storage.googleapis.com/{bucket.name}/{blob.name}"
+            )
 
+    total = len(images)
     start = (page - 1) * page_size
     end = start + page_size
 
     return jsonify({
         "page": page,
-        "total": len(images),
-        "has_more": end < len(images),
+        "page_size": page_size,
+        "total": total,
+        "has_more": end < total,
         "images": images[start:end]
     })
 
-# ----------------------------------------------
+# ------------------------------------
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=5000)
+    app.run(debug=True)
