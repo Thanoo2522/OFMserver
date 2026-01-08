@@ -10,6 +10,10 @@ from PIL import Image
 from datetime import datetime
 
 from werkzeug.security import generate_password_hash, check_password_hash
+
+ 
+ 
+from google.cloud import storage
 #-------------------------------------
 import qrcode
 import io
@@ -39,6 +43,7 @@ firebase_admin.initialize_app(
     }
 )
 
+storage_client = storage.Client()
 db = firestore.client()
 rtdb_ref = rtdb.reference("/")
 bucket = storage.bucket()
@@ -204,8 +209,104 @@ def search_adminmaster():
         })
 
     return jsonify(data)
+    #---------------------โหลดรายชื่อแผงทั้งหมด ---------------------
+@app.route("/get_shops", methods=["GET"])
+def get_shops():
+    """
+    ?ofm=ตลาดสดมารวย
+    """
+    ofm = request.args.get("ofm")
 
+    if not ofm:
+        return jsonify({"error": "missing ofm"}), 400
 
+    prefix = f"{ofm}/"
+    shops = set()
+
+    blobs = storage_client.list_blobs(bucket, prefix=prefix)
+
+    for blob in blobs:
+        parts = blob.name.split("/")
+        if len(parts) >= 2:
+            shops.add(parts[1])
+
+    return jsonify({
+        "ofm": ofm,
+        "shops": sorted(list(shops))
+    })
+
+#-------------------โหลด mode ของแผงที่เลือก --------------------
+@app.route("/get_modes", methods=["GET"])
+def get_modes():
+    """
+    ?ofm=ตลาดสดมารวย&shop=แผงผักดารุณี
+    """
+    ofm = request.args.get("ofm")
+    shop = request.args.get("shop")
+
+    if not ofm or not shop:
+        return jsonify({"error": "missing params"}), 400
+
+    prefix = f"{ofm}/{shop}/"
+    modes = set()
+
+    blobs = storage_client.list_blobs(bucket, prefix=prefix)
+
+    for blob in blobs:
+        parts = blob.name.split("/")
+        if len(parts) >= 3:
+            modes.add(parts[2])
+
+    return jsonify({
+        "shop": shop,
+        "modes": sorted(list(modes))
+    })
+
+#-------------------อ่านจาก path storege firebase โหลดรูปแบบ Pagination-----------
+@app.route("/get_images", methods=["GET"])
+def get_images():
+    """
+    ?ofm=ตลาดสดมารวย
+    &shop=แผงผักดารุณี
+    &mode=ผืชหัว
+    &page=1
+    &page_size=20
+    """
+
+    ofm = request.args.get("ofm")
+    shop = request.args.get("shop")
+    mode = request.args.get("mode")
+
+    page = int(request.args.get("page", 1))
+    page_size = int(request.args.get("page_size", 20))
+
+    if not ofm or not shop or not mode:
+        return jsonify({"error": "missing params"}), 400
+
+    prefix = f"{ofm}/{shop}/{mode}/"
+    blobs = storage_client.list_blobs(bucket, prefix=prefix)
+
+    image_urls = []
+
+    for blob in blobs:
+        if blob.name.lower().endswith(".jpg"):
+            image_urls.append(
+                f"https://storage.googleapis.com/{bucket.name}/{blob.name}"
+            )
+
+    total = len(image_urls)
+    start = (page - 1) * page_size
+    end = start + page_size
+
+    return jsonify({
+        "page": page,
+        "page_size": page_size,
+        "total": total,
+        "has_more": end < total,
+        "images": image_urls[start:end]
+    })
+
+ 
 #----------------------------------------------
 if __name__ == "__main__":
     app.run(debug=True)
