@@ -52,7 +52,7 @@ def build_prefixes(text: str):
 
     #-----------โหลด หมวดทั้งหมด
 @app.route("/warehouse/modes", methods=["GET"])
-def get_modes():
+def get_warehouse_modes():
     prefix = "warehouseMode/"
     modes = set()
 
@@ -66,7 +66,7 @@ def get_modes():
 
     #-----------โหลด รูปทั้งหมดในหมวด
 @app.route("/warehouse/images/<mode>", methods=["GET"])
-def get_images_by_mode(mode):
+def get_warehouse_images_by_mode(mode):
     prefix = f"warehouseMode/{mode}/"
     images = []
 
@@ -76,6 +76,7 @@ def get_images_by_mode(mode):
             images.append(blob.public_url)
 
     return jsonify(images)
+
 
 # ------------------------------------
 # Admin Login
