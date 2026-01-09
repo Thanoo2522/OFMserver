@@ -116,12 +116,15 @@ def save_product():
         storage_path = f"{name_ofm}/{slave_name}/{view_modename}/{view_productname}.jpg"
         blob = bucket.blob(storage_path)
 
-        # ดาวน์โหลดรูปจาก URL
+        # ดาวน์โหลดรูปจาก URL ที่ MAUI ส่งมา
         response = requests.get(preview_image_url)
         if response.status_code == 200:
             blob.upload_from_file(BytesIO(response.content), content_type="image/jpeg")
         else:
-            return jsonify({"success": False, "message": "Failed to download image"}), 400
+            return jsonify({"success": False, "message": "Failed to download image from MAUI"}), 400
+
+        # สร้าง URL ของไฟล์ที่ upload เสร็จแล้ว
+        image_url = f"https://storage.googleapis.com/{bucket.name}/{storage_path}"
 
         # ==============================
         # 🔹 2. Save product info in Firestore
@@ -138,13 +141,17 @@ def save_product():
         doc_ref.set({
             "dataproduct": dataproduct,
             "priceproduct": priceproduct,
-            "image_url": f"https://storage.googleapis.com/{bucket.name}/{storage_path}"
+            "image_url": image_url  # ใช้ URL ที่สร้างจาก storage_path
         })
 
-        return jsonify({"success": True, "message": "Product saved successfully!"})
+        return jsonify({"success": True, "message": "Product saved successfully!", "image_url": image_url})
 
     except Exception as e:
+        # แสดง traceback สำหรับ debug
+        import traceback
+        traceback.print_exc()
         return jsonify({"success": False, "message": str(e)}), 500
+
 
 # ------------------------------------
 # Admin Login
