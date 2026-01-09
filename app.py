@@ -56,27 +56,24 @@ def get_warehouse_modes():
     prefix = "warehouseMode/"
     modes = set()
 
-    blobs = bucket.list_blobs(prefix=prefix)
-    for blob in blobs:
+    for blob in bucket.list_blobs(prefix=prefix):
         parts = blob.name.split("/")
-        if len(parts) > 1:
+        if len(parts) > 1 and parts[1]:
             modes.add(parts[1])
 
     return jsonify(sorted(list(modes)))
 
-    #-----------โหลด รูปทั้งหมดในหมวด
-@app.route("/warehouse/images/<mode>", methods=["GET"])
+   #-----------โหลดรูปทั้งหมด
+@app.route("/warehouse/images/<path:mode>", methods=["GET"])
 def get_warehouse_images_by_mode(mode):
     prefix = f"warehouseMode/{mode}/"
     images = []
 
-    blobs = bucket.list_blobs(prefix=prefix)
-    for blob in blobs:
+    for blob in bucket.list_blobs(prefix=prefix):
         if blob.name.lower().endswith((".jpg", ".png", ".jpeg")):
             images.append(blob.public_url)
 
     return jsonify(images)
-
 
 # ------------------------------------
 # Admin Login
