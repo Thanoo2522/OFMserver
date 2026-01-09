@@ -78,7 +78,14 @@ def get_warehouse_images_by_mode(mode):
                 expiration=timedelta(hours=1),
                 method="GET"
             )
-            images.append(url)
+
+            filename = os.path.basename(blob.name)  # ชื่อไฟล์
+            name_only = os.path.splitext(filename)[0]  # ตัด .jpg
+
+            images.append({
+                "imageUrl": url,
+                "imageName": name_only
+            })
 
     return jsonify(images)
 
