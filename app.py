@@ -90,21 +90,7 @@ def get_warehouse_images_by_mode(mode):
     return jsonify(images)
 
 #-------------------------------------
-from flask import Flask, request, jsonify
-from google.cloud import firestore, storage
-import requests
-from io import BytesIO
-
-app = Flask(__name__)
-
-# ------------------------------
-# Firebase Clients
-# ------------------------------
-db = firestore.Client()
-storage_client = storage.Client()
-bucket = storage_client.bucket("bestofm-a31a0.appspot.com")  # ชื่อ bucket ของคุณ
-
-# ------------------------------
+ 
 # Save product route
 # ------------------------------
 @app.route("/save_product", methods=["POST"])
