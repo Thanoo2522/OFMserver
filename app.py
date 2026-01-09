@@ -89,6 +89,76 @@ def get_warehouse_images_by_mode(mode):
 
     return jsonify(images)
 
+#-------------------------------------
+from flask import Flask, request, jsonify
+from google.cloud import firestore, storage
+import requests
+from io import BytesIO
+
+app = Flask(__name__)
+
+# ------------------------------
+# Firebase Clients
+# ------------------------------
+db = firestore.Client()
+storage_client = storage.Client()
+bucket = storage_client.bucket("bestofm-a31a0.appspot.com")  # ชื่อ bucket ของคุณ
+
+# ------------------------------
+# Save product route
+# ------------------------------
+@app.route("/save_product", methods=["POST"])
+def save_product():
+    try:
+        data = request.json
+
+        name_ofm = data.get("name_ofm")
+        slave_name = data.get("slave_name")
+        view_modename = data.get("view_modename")
+        view_productname = data.get("view_productname")
+        dataproduct = data.get("dataproduct")
+        priceproduct = data.get("priceproduct")
+        preview_image_url = data.get("preview_image_url")  # URL ของรูปจาก MAUI
+
+        # ตรวจสอบข้อมูลครบ
+        if not all([name_ofm, slave_name, view_modename, view_productname, dataproduct, priceproduct, preview_image_url]):
+            return jsonify({"success": False, "message": "Missing fields"}), 400
+
+        # ==============================
+        # 🔹 1. Upload image to Storage
+        # ==============================
+        storage_path = f"{name_ofm}/{slave_name}/{view_modename}/{view_productname}.jpg"
+        blob = bucket.blob(storage_path)
+
+        # ดาวน์โหลดรูปจาก URL
+        response = requests.get(preview_image_url)
+        if response.status_code == 200:
+            blob.upload_from_file(BytesIO(response.content), content_type="image/jpeg")
+        else:
+            return jsonify({"success": False, "message": "Failed to download image"}), 400
+
+        # ==============================
+        # 🔹 2. Save product info in Firestore
+        # ==============================
+        doc_ref = db.collection("OFM_name") \
+                    .document(name_ofm) \
+                    .collection("partner") \
+                    .document(slave_name) \
+                    .collection("mode") \
+                    .document(view_modename) \
+                    .collection("product") \
+                    .document(view_productname)
+
+        doc_ref.set({
+            "dataproduct": dataproduct,
+            "priceproduct": priceproduct,
+            "image_url": f"https://storage.googleapis.com/{bucket.name}/{storage_path}"
+        })
+
+        return jsonify({"success": True, "message": "Product saved successfully!"})
+
+    except Exception as e:
+        return jsonify({"success": False, "message": str(e)}), 500
 
 # ------------------------------------
 # Admin Login
