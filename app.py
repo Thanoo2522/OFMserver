@@ -1,12 +1,13 @@
 from flask import Flask, request, jsonify
-import os, json, traceback
+import os, json, io, traceback
 
 import firebase_admin
 from firebase_admin import credentials, storage, db as rtdb, firestore
 
 from werkzeug.security import generate_password_hash, check_password_hash
 from datetime import datetime
-
+ 
+from PIL import Image
 # ------------------------------------
 # Flask
 # ------------------------------------
@@ -49,6 +50,105 @@ def build_prefixes(text: str):
         prefixes.append(current)
     return prefixes
 
+    #----------------------
+# =====================================================
+# 1️⃣ โหลด Mode (folder ใต้ warehouseMode)
+# =====================================================
+@app.route("/warehouse/modes")
+def get_modes():
+    try:
+        blobs = bucket.list_blobs(prefix="warehouseMode/")
+        modes = set()
+
+        for b in blobs:
+            parts = b.name.split("/")
+            if len(parts) >= 2 and parts[1]:
+                modes.add(parts[1])
+
+        return jsonify(sorted(list(modes)))
+    except:
+        traceback.print_exc()
+        return jsonify([]), 500
+
+
+# =====================================================
+# 2️⃣ โหลดรูปทั้งหมดใน Mode
+# =====================================================
+@app.route("/warehouse/images")
+def get_images():
+    try:
+        mode = request.args.get("mode")
+        prefix = f"warehouseMode/{mode}/"
+
+        images = []
+        for b in bucket.list_blobs(prefix=prefix):
+            if b.name.lower().endswith((".jpg", ".png")):
+                images.append(b.public_url)
+
+        return jsonify(images)
+    except:
+        traceback.print_exc()
+        return jsonify([]), 500
+
+
+# =====================================================
+# 3️⃣ Upload + Save Product
+# =====================================================
+@app.route("/product/save", methods=["POST"])
+def save_product():
+    try:
+        f = request.files["image"]
+
+        name_ofm = request.form["name_ofm"]
+        slave_name = request.form["slave_name"]
+        mode_name = request.form["mode_name"]
+        product_name = request.form["product_name"]
+        dataproduct = request.form["dataproduct"]
+        priceproduct = request.form["priceproduct"]
+        switch_mode = request.form.get("switch_mode") == "true"
+
+        # --- resize (กัน client ส่งพลาด)
+        img = Image.open(f.stream).convert("RGB")
+        img = img.resize((512, 512))
+
+        img_io = io.BytesIO()
+        img.save(img_io, "JPEG")
+        img_io.seek(0)
+
+        # --- path storage
+        storage_path = (
+            f"OFM_name/{name_ofm}/partner/{slave_name}/"
+            f"mode/{mode_name}/product/{product_name}.jpg"
+        )
+
+        blob = bucket.blob(storage_path)
+        blob.upload_from_file(img_io, content_type="image/jpeg")
+        blob.make_public()
+
+        image_url = blob.public_url
+
+        # --- Firestore
+        doc = {
+            "mode": mode_name,
+            "product": product_name,
+            "dataproduct": dataproduct,
+            "price": priceproduct,
+            "image": image_url,
+            "created": datetime.utcnow()
+        }
+
+        db.collection("OFM") \
+            .document(name_ofm) \
+            .collection("partner") \
+            .document(slave_name) \
+            .collection("products") \
+            .add(doc)
+
+        return jsonify({"status": "ok", "image_url": image_url})
+
+    except Exception as e:
+        traceback.print_exc()
+        return jsonify({"error": str(e)}), 500
 # ------------------------------------
 # Admin Login
 # ------------------------------------
