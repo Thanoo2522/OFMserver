@@ -6,7 +6,7 @@ from firebase_admin import credentials, storage, db as rtdb, firestore
 
 from werkzeug.security import generate_password_hash, check_password_hash
 from datetime import datetime
- 
+ import requests
 from PIL import Image
 # ------------------------------------
 # Flask
