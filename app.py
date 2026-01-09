@@ -64,6 +64,8 @@ def get_warehouse_modes():
     return jsonify(sorted(list(modes)))
 
    #-----------โหลดรูปทั้งหมด
+from datetime import timedelta
+
 @app.route("/warehouse/images/<path:mode>", methods=["GET"])
 def get_warehouse_images_by_mode(mode):
     prefix = f"warehouseMode/{mode}/"
@@ -71,9 +73,15 @@ def get_warehouse_images_by_mode(mode):
 
     for blob in bucket.list_blobs(prefix=prefix):
         if blob.name.lower().endswith((".jpg", ".png", ".jpeg")):
-            images.append(blob.public_url)
+            url = blob.generate_signed_url(
+                version="v4",
+                expiration=timedelta(hours=1),
+                method="GET"
+            )
+            images.append(url)
 
     return jsonify(images)
+
 
 # ------------------------------------
 # Admin Login
