@@ -508,7 +508,7 @@ def user_password():
             }), 200
 
         # -------- check password --------
-        if not check_password_hash(password_hash, slave_password):
+        if not check_password_hash(password_hash, user_password):
             return jsonify({
                 "status": "wrong_password"
             }), 200
@@ -517,7 +517,7 @@ def user_password():
         return jsonify({
             "status": "success",
             "nameofm": name_ofm,
-            "slavename": user_name
+            "username": user_name
         }), 200
 
     except Exception as e:
@@ -526,7 +526,7 @@ def user_password():
             "status": "server_error",
             "message": str(e)
         }), 500
-  
+
 #------------------------------------
 @app.route("/slave_password", methods=["POST"])
 def slave_password():
