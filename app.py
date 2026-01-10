@@ -326,6 +326,68 @@ def get_images():
         "has_more": end < total,
         "images": images[start:end]
     })
+
+#----------------------------------------------
+@app.route("/register_user", methods=["POST"])
+def register_customer():
+    try:
+        data = request.json or {}
+
+        # --------- รับค่าจาก MAUI ---------
+        name_ofm = data.get("name_ofm")
+        username = data.get("username")
+        address = data.get("address")
+        phone = data.get("phone")
+        password = data.get("password")
+
+        # --------- Validate ---------
+        if not all([name_ofm, username, address, phone, password]):
+            return jsonify({
+                "success": False,
+                "message": "ข้อมูลไม่ครบ"
+            }), 400
+
+        # --------- Firestore Path ---------
+        ofm_ref = db.collection("OFM_name").document(name_ofm)
+        user_ref = (
+            ofm_ref
+            .collection("customers")
+            .document(username)
+        )
+
+        # --------- Check Duplicate ---------
+        if user_ref.get().exists:
+            return jsonify({
+                "success": False,
+                "message": "ชื่อผู้ใช้ซ้ำ กรุณาใช้ชื่ออื่น"
+            }), 409
+
+        # --------- Save OFM (merge) ---------
+        ofm_ref.set({
+            "OFM_name": name_ofm,
+            "updated_at": datetime.utcnow()
+        }, merge=True)
+
+        # --------- Save Customer ---------
+        user_ref.set({
+            "username": username,
+            "address": address,
+            "phone": phone,
+            "password_hash": generate_password_hash(password),
+            "created_at": datetime.utcnow()
+        })
+
+        return jsonify({
+            "success": True,
+            "message": "ลงทะเบียนลูกค้าสำเร็จ"
+        }), 201
+
+    except Exception as e:
+        return jsonify({
+            "success": False,
+            "message": str(e)
+        }), 500
+
 #---------------------------------------
 @app.route("/register_slave", methods=["POST"])
 def register_slave():
@@ -402,6 +464,69 @@ def register_slave():
             "success": False,
             "message": str(e)
         }), 500
+  #--------------------------------
+@app.route("/user_password", methods=["POST"])
+def user_password():
+    try:
+        data = request.get_json() or {}
+
+        name_ofm = data.get("name_ofm", "").strip()
+        user_name = data.get("user_name", "").strip()
+        user_password = data.get("user_password", "").strip()
+
+        # -------- validate --------
+        if not name_ofm or not user_name or not user_password:
+            return jsonify({
+                "status": "error",
+                "message": "missing_parameters"
+            }), 400
+
+        # -------- Firestore path --------
+        # OFM_name/{name_ofm}/customers/{user_name}
+        user_ref = (
+            db.collection("OFM_name")
+              .document(name_ofm)
+              .collection("customers")
+              .document(user_name)
+        )
+
+        doc = user_ref.get()
+
+        # -------- not found --------
+        if not doc.exists:
+            return jsonify({
+                "status": "not_found"
+            }), 200
+
+        user_data = doc.to_dict()
+        password_hash = user_data.get("password_hash")
+
+        # -------- no password in db --------
+        if not password_hash:
+            return jsonify({
+                "status": "wrong_password"
+            }), 200
+
+        # -------- check password --------
+        if not check_password_hash(password_hash, slave_password):
+            return jsonify({
+                "status": "wrong_password"
+            }), 200
+
+        # -------- success --------
+        return jsonify({
+            "status": "success",
+            "nameofm": name_ofm,
+            "slavename": user_name
+        }), 200
+
+    except Exception as e:
+        print("USER PASSWORD ERROR:", str(e))
+        return jsonify({
+            "status": "server_error",
+            "message": str(e)
+        }), 500
+  
 #------------------------------------
 @app.route("/slave_password", methods=["POST"])
 def slave_password():
