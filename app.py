@@ -89,8 +89,9 @@ def get_warehouse_images_by_mode(mode):
     return jsonify(images)
 
 #---ดึงหมวดสินค้า
-@app.route("/get_modes/<name_ofm>")
-def get_modes(name_ofm):
+# --- ดึงหมวดสินค้า
+@app.route("/get_modes/<name_ofm>", methods=["GET"])
+def get_modes_by_ofm(name_ofm):
     modes = []
 
     docs = (
@@ -101,12 +102,14 @@ def get_modes(name_ofm):
     )
 
     for d in docs:
-        modes.append(d.id)
+        modes.append(d.id)  # ใช้ชื่อ document เป็นชื่อหมวด
 
     return jsonify(modes)
 
+
 #---ดึงร้านค้า
-@app.route("/get_shops/<name_ofm>")
+# --- ดึงร้านค้า
+@app.route("/get_shops/<name_ofm>", methods=["GET"])
 def get_shops_by_ofm(name_ofm):
     shops = []
 
@@ -118,13 +121,15 @@ def get_shops_by_ofm(name_ofm):
     )
 
     for d in docs:
-        shops.append(d.id)
+        shops.append(d.id)  # ใช้ชื่อ document เป็นชื่อร้าน
 
     return jsonify(shops)
 
+
 #---ดึงสินค้า
-@app.route("/get_products/<name_ofm>/<slave_name>/<view_modename>")
-def get_products(name_ofm, slave_name, view_modename):
+# --- ดึงสินค้า
+@app.route("/get_products/<name_ofm>/<slave_name>/<view_modename>", methods=["GET"])
+def get_products_by_mode(name_ofm, slave_name, view_modename):
     products = []
 
     docs = (
@@ -139,15 +144,16 @@ def get_products(name_ofm, slave_name, view_modename):
     )
 
     for d in docs:
-        data = d.to_dict()
+        data = d.to_dict() or {}
         products.append({
             "ProductName": d.id,
-            "ProductDetail": data.get("dataproduct"),
-            "Price": data.get("priceproduct"),
-            "ImageUrl": data.get("image_url")
+            "ProductDetail": data.get("dataproduct", ""),
+            "Price": data.get("priceproduct", 0),
+            "ImageUrl": data.get("image_url", "")
         })
 
     return jsonify(products)
+
 
 #-------------------------------------
  
