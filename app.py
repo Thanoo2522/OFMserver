@@ -141,7 +141,7 @@ def get_products_by_mode(name_ofm, slave_name, view_modename):
               .collection("mode")
               .document(view_modename)
               .collection("product")
-               
+              .stream()
         )
 
         for d in docs:
