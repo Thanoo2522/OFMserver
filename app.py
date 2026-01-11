@@ -132,39 +132,56 @@ def get_shops_by_ofm(name_ofm):
 def get_products_by_mode(name_ofm, slave_name, view_modename):
     products = []
 
-    docs = (
-        db.collection("OFM_name")
-          .document(name_ofm)
-          .collection("partner")
-          .document(slave_name)
-          .collection("mode")
-          .document(view_modename)
-          .collection("product")
-          .stream()
-    )
+    try:
+        docs = (
+            db.collection("OFM_name")
+              .document(name_ofm)
+              .collection("partner")
+              .document(slave_name)
+              .collection("mode")
+              .document(view_modename)
+              .collection("product")
+              .stream()
+        )
 
-    for d in docs:
-        data = d.to_dict() or {}
-        image_url = ""
+        for d in docs:
+            data = d.to_dict() or {}
+            image_url = ""
 
-        image_path = data.get("image_path")
-        if image_path:
-            blob = bucket.blob(image_path)
-            image_url = blob.generate_signed_url(
-                version="v4",
-                expiration=timedelta(hours=1),
-                method="GET"
-            )
+            # ✅ ใช้ image_path เป็นหลัก
+            image_path = data.get("image_path")
 
-        products.append({
-            "ProductName": d.id,
-            "ProductDetail": data.get("dataproduct", ""),
-            "Price": data.get("priceproduct", 0),
-            "ImageUrl": image_url   # ✅ URL ที่เปิดได้จริง (ชั่วคราว)
+            if image_path:
+                try:
+                    blob = bucket.blob(image_path)
+                    image_url = blob.generate_signed_url(
+                        version="v4",
+                        expiration=timedelta(hours=1),
+                        method="GET"
+                    )
+                except Exception as e:
+                    print("SIGNED URL ERROR:", e)
+
+            products.append({
+                "ProductName": d.id,
+                "ProductDetail": data.get("dataproduct", ""),
+                "Price": data.get("priceproduct", 0),
+                "ImageUrl": image_url
+            })
+
+        return jsonify({
+            "success": True,
+            "count": len(products),
+            "products": products
         })
 
-    return jsonify(products)
-
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({
+            "success": False,
+            "message": str(e)
+        }), 500
 #-------------------------------------
  
 # Save product route
@@ -182,7 +199,6 @@ def save_product():
         priceproduct = data.get("priceproduct")
         preview_image_url = data.get("preview_image_url")
 
-        # -------- validate --------
         if not all([
             name_ofm,
             slave_name,
@@ -192,34 +208,30 @@ def save_product():
             priceproduct,
             preview_image_url
         ]):
-            return jsonify({
-                "success": False,
-                "message": "Missing fields"
-            }), 400
+            return jsonify({"success": False, "message": "Missing fields"}), 400
 
-        # ==============================
-        # 1) Upload image to Storage
-        # ==============================
+        # 1) Upload image
         storage_path = f"{name_ofm}/{slave_name}/{view_modename}/{view_productname}.jpg"
         blob = bucket.blob(storage_path)
 
         response = requests.get(preview_image_url)
-        if response.status_code == 200:
-            blob.upload_from_file(
-                BytesIO(response.content),
-                content_type="image/jpeg"
-            )
-        else:
+        if response.status_code != 200:
             return jsonify({
                 "success": False,
                 "message": "Failed to download image from MAUI"
             }), 400
 
+        blob.upload_from_file(
+            BytesIO(response.content),
+            content_type="image/jpeg"
+        )
+
+        # ✅ เพิ่มแค่บรรทัดนี้
+        blob.make_public()
+
         image_url = f"https://storage.googleapis.com/{bucket.name}/{storage_path}"
 
-        # ==============================
-        # 2) Save product (LOGIC เดิม - partner)
-        # ==============================
+        # 2) Save product (logic เดิม)
         doc_ref = (
             db.collection("OFM_name")
               .document(name_ofm)
@@ -239,9 +251,7 @@ def save_product():
             "created_at": datetime.utcnow()
         })
 
-        # ==============================
-        # 3) 🔹 เพิ่มบันทึกที่ path ใหม่ (modproduct)
-        # ==============================
+        # 3) modproduct (เดิม)
         mode_ref = (
             db.collection("OFM_name")
               .document(name_ofm)
@@ -249,13 +259,11 @@ def save_product():
               .document(view_modename)
         )
 
-        # สร้าง mode ถ้ายังไม่มี
         if not mode_ref.get().exists:
             mode_ref.set({
                 "view_modename": view_modename,
                 "created_at": datetime.utcnow()
             })
- 
 
         return jsonify({
             "success": True,
@@ -266,10 +274,8 @@ def save_product():
     except Exception as e:
         import traceback
         traceback.print_exc()
-        return jsonify({
-            "success": False,
-            "message": str(e)
-        }), 500
+        return jsonify({"success": False, "message": str(e)}), 500
+
 
 # ------------------------------------
 # Admin Login
