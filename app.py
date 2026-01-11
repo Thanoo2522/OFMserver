@@ -157,7 +157,9 @@ def save_product():
         doc_ref.set({
             "dataproduct": dataproduct,
             "priceproduct": priceproduct,
-            "image_url": image_url
+            "image_url": image_url,
+            "slave_name": slave_name,
+            "created_at": datetime.utcnow()
         })
 
         # ==============================
@@ -176,20 +178,7 @@ def save_product():
                 "view_modename": view_modename,
                 "created_at": datetime.utcnow()
             })
-
-        product_ref = (
-            mode_ref
-              .collection("products")
-              .document(view_productname)
-        )
-
-        product_ref.set({
-            "dataproduct": dataproduct,
-            "priceproduct": priceproduct,
-            "image_url": image_url,
-            "slave_name": slave_name,
-            "created_at": datetime.utcnow()
-        })
+ 
 
         return jsonify({
             "success": True,
