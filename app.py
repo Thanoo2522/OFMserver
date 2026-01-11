@@ -107,7 +107,7 @@ def get_modes(name_ofm):
 
 #---ดึงร้านค้า
 @app.route("/get_shops/<name_ofm>")
-def get_shops(name_ofm):
+def get_shops_by_ofm(name_ofm):
     shops = []
 
     docs = (
