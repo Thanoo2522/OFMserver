@@ -88,6 +88,67 @@ def get_warehouse_images_by_mode(mode):
 
     return jsonify(images)
 
+#---ดึงหมวดสินค้า
+@app.route("/get_modes/<name_ofm>")
+def get_modes(name_ofm):
+    modes = []
+
+    docs = (
+        db.collection("OFM_name")
+          .document(name_ofm)
+          .collection("modproduct")
+          .stream()
+    )
+
+    for d in docs:
+        modes.append(d.id)
+
+    return jsonify(modes)
+
+#---ดึงร้านค้า
+@app.route("/get_shops/<name_ofm>")
+def get_shops(name_ofm):
+    shops = []
+
+    docs = (
+        db.collection("OFM_name")
+          .document(name_ofm)
+          .collection("partner")
+          .stream()
+    )
+
+    for d in docs:
+        shops.append(d.id)
+
+    return jsonify(shops)
+
+#---ดึงสินค้า
+@app.route("/get_products/<name_ofm>/<slave_name>/<view_modename>")
+def get_products(name_ofm, slave_name, view_modename):
+    products = []
+
+    docs = (
+        db.collection("OFM_name")
+          .document(name_ofm)
+          .collection("partner")
+          .document(slave_name)
+          .collection("mode")
+          .document(view_modename)
+          .collection("product")
+          .stream()
+    )
+
+    for d in docs:
+        data = d.to_dict()
+        products.append({
+            "ProductName": d.id,
+            "ProductDetail": data.get("dataproduct"),
+            "Price": data.get("priceproduct"),
+            "ImageUrl": data.get("image_url")
+        })
+
+    return jsonify(products)
+
 #-------------------------------------
  
 # Save product route
