@@ -148,9 +148,7 @@ def get_products_by_mode(name_ofm, slave_name, view_modename):
             data = d.to_dict() or {}
             image_url = ""
 
-            # ✅ ใช้ image_path เป็นหลัก
             image_path = data.get("image_path")
-
             if image_path:
                 try:
                     blob = bucket.blob(image_path)
@@ -166,22 +164,16 @@ def get_products_by_mode(name_ofm, slave_name, view_modename):
                 "ProductName": d.id,
                 "ProductDetail": data.get("dataproduct", ""),
                 "Price": data.get("priceproduct", 0),
-                "ImageUrl": image_url
+                "ImageUrl": image_url or ""   # ✅ กัน null
             })
 
-        return jsonify({
-            "success": True,
-            "count": len(products),
-            "products": products
-        })
+        # ✅ สำคัญมาก: ส่ง array ตรง ๆ
+        return jsonify(products)
 
     except Exception as e:
         import traceback
         traceback.print_exc()
-        return jsonify({
-            "success": False,
-            "message": str(e)
-        }), 500
+        return jsonify([]), 500   # ✅ MAUI จะไม่ crash
 #-------------------------------------
  
 # Save product route
