@@ -141,39 +141,37 @@ def get_products_by_mode(name_ofm, slave_name, view_modename):
               .collection("mode")
               .document(view_modename)
               .collection("product")
-              .stream()
+              .stream()   # ✅ สำคัญมาก
         )
 
         for d in docs:
             data = d.to_dict() or {}
-            image_url = ""
 
+            imageurl = ""
             image_path = data.get("image_path")
+
             if image_path:
-                try:
-                    blob = bucket.blob(image_path)
-                    image_url = blob.generate_signed_url(
-                        version="v4",
-                        expiration=timedelta(hours=1),
-                        method="GET"
-                    )
-                except Exception as e:
-                    print("SIGNED URL ERROR:", e)
+                blob = bucket.blob(image_path)
+                imageurl = blob.generate_signed_url(
+                    version="v4",
+                    expiration=timedelta(hours=1),
+                    method="GET"
+                )
 
             products.append({
                 "ProductName": d.id,
                 "ProductDetail": data.get("dataproduct", ""),
                 "Price": data.get("priceproduct", 0),
-                "ImageUrl": image_url or ""   # ✅ กัน null
+                "imageurl": imageurl
             })
 
-        # ✅ สำคัญมาก: ส่ง array ตรง ๆ
+        # ✅ ส่ง array ของ object ตรง ๆ
         return jsonify(products)
 
     except Exception as e:
         import traceback
         traceback.print_exc()
-        return jsonify([]), 500   # ✅ MAUI จะไม่ crash
+        return jsonify([]), 500
 #-------------------------------------
  
 # Save product route
