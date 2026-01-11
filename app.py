@@ -95,7 +95,7 @@ def get_warehouse_images_by_mode(mode):
 @app.route("/save_product", methods=["POST"])
 def save_product():
     try:
-        data = request.get_json() or {}
+        data = request.json
 
         name_ofm = data.get("name_ofm")
         slave_name = data.get("slave_name")
@@ -121,27 +121,47 @@ def save_product():
             }), 400
 
         # ==============================
-        # 1) Upload image to Firebase Storage
+        # 1) Upload image to Storage
         # ==============================
         storage_path = f"{name_ofm}/{slave_name}/{view_modename}/{view_productname}.jpg"
         blob = bucket.blob(storage_path)
 
         response = requests.get(preview_image_url)
-        if response.status_code != 200:
+        if response.status_code == 200:
+            blob.upload_from_file(
+                BytesIO(response.content),
+                content_type="image/jpeg"
+            )
+        else:
             return jsonify({
                 "success": False,
-                "message": "Failed to download image"
+                "message": "Failed to download image from MAUI"
             }), 400
-
-        blob.upload_from_file(
-            BytesIO(response.content),
-            content_type="image/jpeg"
-        )
 
         image_url = f"https://storage.googleapis.com/{bucket.name}/{storage_path}"
 
         # ==============================
-        # 2) Create / ensure MODE (ไม่ซ้ำ)
+        # 2) Save product (LOGIC เดิม - partner)
+        # ==============================
+        doc_ref = (
+            db.collection("OFM_name")
+              .document(name_ofm)
+              .collection("partner")
+              .document(slave_name)
+              .collection("mode")
+              .document(view_modename)
+              .collection("product")
+              .document(view_productname)
+        )
+
+        doc_ref.set({
+            "dataproduct": dataproduct,
+            "priceproduct": priceproduct,
+            "image_url": image_url
+        })
+
+        # ==============================
+        # 3) 🔹 เพิ่มบันทึกที่ path ใหม่ (modproduct)
         # ==============================
         mode_ref = (
             db.collection("OFM_name")
@@ -150,16 +170,13 @@ def save_product():
               .document(view_modename)
         )
 
-        # ถ้า mode ยังไม่มี → สร้าง
+        # สร้าง mode ถ้ายังไม่มี
         if not mode_ref.get().exists:
             mode_ref.set({
                 "view_modename": view_modename,
-              
+                "created_at": datetime.utcnow()
             })
 
-        # ==============================
-        # 3) Save PRODUCT under mode
-        # ==============================
         product_ref = (
             mode_ref
               .collection("products")
@@ -167,7 +184,6 @@ def save_product():
         )
 
         product_ref.set({
-            "view_productname": view_productname,
             "dataproduct": dataproduct,
             "priceproduct": priceproduct,
             "image_url": image_url,
@@ -177,9 +193,9 @@ def save_product():
 
         return jsonify({
             "success": True,
-            "message": "Product saved successfully",
+            "message": "Product saved successfully!",
             "image_url": image_url
-        }), 201
+        })
 
     except Exception as e:
         import traceback
