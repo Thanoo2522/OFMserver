@@ -326,6 +326,69 @@ def get_images():
         "has_more": end < total,
         "images": images[start:end]
     })
+#---------------------------register_del ข้อมูลพนักงานส่ง-------
+@app.route("/register_del", methods=["POST"])
+def register_del():
+    try:
+        data = request.get_json() or {}
+
+        # --------- รับค่าจาก MAUI ---------
+        name_ofm = data.get("name_ofm", "").strip()
+        del_name = data.get("delname", "").strip()
+        address = data.get("address", "").strip()
+        phone = data.get("phone", "").strip()
+        password = data.get("password", "").strip()
+
+        # --------- Validate ---------
+        if not all([name_ofm, del_name, address, phone, password]):
+            return jsonify({
+                "success": False,
+                "message": "ข้อมูลไม่ครบ"
+            }), 400
+
+        # --------- Firestore Path ---------
+        ofm_ref = db.collection("OFM_name").document(name_ofm)
+        del_ref = (
+            ofm_ref
+            .collection("delivery")
+            .document(del_name)
+        )
+
+        # --------- Check Duplicate ---------
+        if del_ref.get().exists:
+            return jsonify({
+                "success": False,
+                "message": "ชื่อพนักงานส่งซ้ำ กรุณาใช้ชื่ออื่น"
+            }), 409
+
+        # --------- Save OFM (merge) ---------
+        ofm_ref.set({
+            "OFM_name": name_ofm,
+            "updated_at": datetime.utcnow()
+        }, merge=True)
+
+        # --------- Save Delivery ---------
+        del_ref.set({
+            "del_name": del_name,
+            "address": address,
+            "phone": phone,
+            "password_hash": generate_password_hash(password),
+            "role": "delivery",
+            "status": "active",
+            "created_at": datetime.utcnow()
+        })
+
+        return jsonify({
+            "success": True,
+            "message": "ลงทะเบียนพนักงานส่งสำเร็จ"
+        }), 201
+
+    except Exception as e:
+        print("REGISTER DELIVERY ERROR:", str(e))
+        return jsonify({
+            "success": False,
+            "message": str(e)
+        }), 500
 
 #----------------------------------------------
 @app.route("/register_user", methods=["POST"])
@@ -464,6 +527,69 @@ def register_slave():
             "success": False,
             "message": str(e)
         }), 500
+    #------------------------------
+@app.route("/del_password", methods=["POST"])
+def del_password():
+    try:
+        data = request.get_json() or {}
+
+        name_ofm = data.get("name_ofm", "").strip()
+        del_name = data.get("del_name", "").strip()
+        del_password = data.get("del_password", "").strip()
+
+        # -------- validate --------
+        if not name_ofm or not del_name or not del_password:
+            return jsonify({
+                "status": "error",
+                "message": "missing_parameters"
+            }), 400
+
+        # -------- Firestore path --------
+        # OFM_name/{name_ofm}/delivery/{del_name}
+        del_ref = (
+            db.collection("OFM_name")
+              .document(name_ofm)
+              .collection("delivery")
+              .document(del_name)
+        )
+
+        doc = del_ref.get()
+
+        # -------- not found --------
+        if not doc.exists:
+            return jsonify({
+                "status": "not_found"
+            }), 200
+
+        del_data = doc.to_dict()
+        password_hash = del_data.get("password_hash")
+
+        # -------- no password --------
+        if not password_hash:
+            return jsonify({
+                "status": "wrong_password"
+            }), 200
+
+        # -------- check password --------
+        if not check_password_hash(password_hash, del_password):
+            return jsonify({
+                "status": "wrong_password"
+            }), 200
+
+        # -------- success --------
+        return jsonify({
+            "status": "success",
+            "name_ofm": name_ofm,
+            "del_name": del_name
+        }), 200
+
+    except Exception as e:
+        print("DELIVERY PASSWORD ERROR:", str(e))
+        return jsonify({
+            "status": "server_error",
+            "message": str(e)
+        }), 500
+
   #--------------------------------
 @app.route("/user_password", methods=["POST"])
 def user_password():
