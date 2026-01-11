@@ -145,15 +145,25 @@ def get_products_by_mode(name_ofm, slave_name, view_modename):
 
     for d in docs:
         data = d.to_dict() or {}
+        image_url = ""
+
+        image_path = data.get("image_path")
+        if image_path:
+            blob = bucket.blob(image_path)
+            image_url = blob.generate_signed_url(
+                version="v4",
+                expiration=timedelta(hours=1),
+                method="GET"
+            )
+
         products.append({
             "ProductName": d.id,
             "ProductDetail": data.get("dataproduct", ""),
             "Price": data.get("priceproduct", 0),
-            "ImageUrl": data.get("image_url", "")
+            "ImageUrl": image_url   # ✅ URL ที่เปิดได้จริง (ชั่วคราว)
         })
 
     return jsonify(products)
-
 
 #-------------------------------------
  
