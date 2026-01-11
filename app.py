@@ -95,7 +95,7 @@ def get_warehouse_images_by_mode(mode):
 @app.route("/save_product", methods=["POST"])
 def save_product():
     try:
-        data = request.json
+        data = request.get_json() or {}
 
         name_ofm = data.get("name_ofm")
         slave_name = data.get("slave_name")
@@ -103,54 +103,91 @@ def save_product():
         view_productname = data.get("view_productname")
         dataproduct = data.get("dataproduct")
         priceproduct = data.get("priceproduct")
-        preview_image_url = data.get("preview_image_url")  # URL ของรูปจาก MAUI
+        preview_image_url = data.get("preview_image_url")
 
-        # ตรวจสอบข้อมูลครบ
-        if not all([name_ofm, slave_name, view_modename, view_productname, dataproduct, priceproduct, preview_image_url]):
-            return jsonify({"success": False, "message": "Missing fields"}), 400
+        # -------- validate --------
+        if not all([
+            name_ofm,
+            slave_name,
+            view_modename,
+            view_productname,
+            dataproduct,
+            priceproduct,
+            preview_image_url
+        ]):
+            return jsonify({
+                "success": False,
+                "message": "Missing fields"
+            }), 400
 
         # ==============================
-        # 🔹 1. Upload image to Storage
+        # 1) Upload image to Firebase Storage
         # ==============================
         storage_path = f"{name_ofm}/{slave_name}/{view_modename}/{view_productname}.jpg"
         blob = bucket.blob(storage_path)
 
-        # ดาวน์โหลดรูปจาก URL ที่ MAUI ส่งมา
         response = requests.get(preview_image_url)
-        if response.status_code == 200:
-            blob.upload_from_file(BytesIO(response.content), content_type="image/jpeg")
-        else:
-            return jsonify({"success": False, "message": "Failed to download image from MAUI"}), 400
+        if response.status_code != 200:
+            return jsonify({
+                "success": False,
+                "message": "Failed to download image"
+            }), 400
 
-        # สร้าง URL ของไฟล์ที่ upload เสร็จแล้ว
+        blob.upload_from_file(
+            BytesIO(response.content),
+            content_type="image/jpeg"
+        )
+
         image_url = f"https://storage.googleapis.com/{bucket.name}/{storage_path}"
 
         # ==============================
-        # 🔹 2. Save product info in Firestore
+        # 2) Create / ensure MODE (ไม่ซ้ำ)
         # ==============================
-        doc_ref = db.collection("OFM_name") \
-                    .document(name_ofm) \
-                    .collection("partner") \
-                    .document(slave_name) \
-                    .collection("mode") \
-                    .document(view_modename) \
-                    .collection("product") \
-                    .document(view_productname)
+        mode_ref = (
+            db.collection("OFM_name")
+              .document(name_ofm)
+              .collection("modproduct")
+              .document(view_modename)
+        )
 
-        doc_ref.set({
+        # ถ้า mode ยังไม่มี → สร้าง
+        if not mode_ref.get().exists:
+            mode_ref.set({
+                "view_modename": view_modename,
+              
+            })
+
+        # ==============================
+        # 3) Save PRODUCT under mode
+        # ==============================
+        product_ref = (
+            mode_ref
+              .collection("products")
+              .document(view_productname)
+        )
+
+        product_ref.set({
+            "view_productname": view_productname,
             "dataproduct": dataproduct,
             "priceproduct": priceproduct,
-            "image_url": image_url  # ใช้ URL ที่สร้างจาก storage_path
+            "image_url": image_url,
+            "slave_name": slave_name,
+            "created_at": datetime.utcnow()
         })
 
-        return jsonify({"success": True, "message": "Product saved successfully!", "image_url": image_url})
+        return jsonify({
+            "success": True,
+            "message": "Product saved successfully",
+            "image_url": image_url
+        }), 201
 
     except Exception as e:
-        # แสดง traceback สำหรับ debug
         import traceback
         traceback.print_exc()
-        return jsonify({"success": False, "message": str(e)}), 500
-
+        return jsonify({
+            "success": False,
+            "message": str(e)
+        }), 500
 
 # ------------------------------------
 # Admin Login
