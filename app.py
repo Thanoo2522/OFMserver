@@ -141,37 +141,25 @@ def get_products_by_mode(name_ofm, slave_name, view_modename):
               .collection("mode")
               .document(view_modename)
               .collection("product")
-              .stream()   # ✅ สำคัญมาก
+              .stream()
         )
 
         for d in docs:
             data = d.to_dict() or {}
-
-            imageurl = ""
-            image_path = data.get("image_path")
-
-            if image_path:
-                blob = bucket.blob(image_path)
-                imageurl = blob.generate_signed_url(
-                    version="v4",
-                    expiration=timedelta(hours=1),
-                    method="GET"
-                )
-
             products.append({
                 "ProductName": d.id,
                 "ProductDetail": data.get("dataproduct", ""),
                 "Price": data.get("priceproduct", 0),
-                "imageurl": imageurl
+                "imageurl": data.get("image_url", ""),
             })
 
-        # ✅ ส่ง array ของ object ตรง ๆ
         return jsonify(products)
 
     except Exception as e:
         import traceback
         traceback.print_exc()
         return jsonify([]), 500
+
 #-------------------------------------
  
 # Save product route
