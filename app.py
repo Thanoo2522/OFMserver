@@ -259,7 +259,7 @@ def add_item_preorder():
     productname = data.get("productname")
     priceproduct = data.get("priceproduct", 0)
     image_url = data.get("image_url", "")
-    ProductDetail = data.get("ProductDetail", "")
+    ProductDetail = data.get("ProductDetail")
 
     if not all([nameOfm, userName, orderId, productname]):
         return jsonify({
