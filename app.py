@@ -150,7 +150,8 @@ def get_products_by_mode(name_ofm, slave_name, view_modename):
             data = d.to_dict() or {}
             products.append({
                 "ProductName": d.id,
-                "ProductDetail": data.get("ProductDetail", ""),
+               
+                "ProductDetail": data.get("ProductDetail") or data.get("dataproduct", ""),
                 "Price": data.get("priceproduct", 0),
                 "imageurl": data.get("image_url", ""),
             })
