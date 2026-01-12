@@ -259,6 +259,7 @@ def add_item_preorder():
     productname = data.get("productname")
     priceproduct = data.get("priceproduct", 0)
     image_url = data.get("image_url", "")
+    ProductDetail = data.get("ProductDetail", "")
 
     if not all([nameOfm, userName, orderId, productname]):
         return jsonify({
@@ -275,11 +276,10 @@ def add_item_preorder():
           .document(orderId)
     )
 
-    # 🔹 item ใหม่ (auto id)
     item_ref = order_ref.collection("items").document()
-
     item_ref.set({
         "productname": productname,
+        "ProductDetail": ProductDetail,
         "priceproduct": priceproduct,
         "image_url": image_url,
         "numberproduct": 1,
@@ -287,11 +287,8 @@ def add_item_preorder():
         "created_at": datetime.utcnow()
     })
 
-    # 🔹 update preorder count
     order_doc = order_ref.get()
-    preorder = 0
-    if order_doc.exists:
-        preorder = order_doc.to_dict().get("Preorder", 0)
+    preorder = order_doc.to_dict().get("Preorder", 0) if order_doc.exists else 0
 
     order_ref.update({
         "Preorder": preorder + 1
@@ -299,10 +296,38 @@ def add_item_preorder():
 
     return jsonify({
         "status": "success",
-        "message": "item added"
+        "message": "item added",
+        "orderId": orderId   # ✅ ส่งกลับ
     })
 
- 
+
+
+@app.route("/get_order_items", methods=["GET"])
+def get_order_items():
+    nameOfm = request.args.get("nameOfm")
+    userName = request.args.get("userName")
+    orderId = request.args.get("orderId")
+
+    items_ref = (
+        db.collection("OFM_name").document(nameOfm)
+          .collection("customers").document(userName)
+          .collection("orders").document(orderId)
+          .collection("items")
+          .stream()
+    )
+
+    items = []
+    for d in items_ref:
+        data = d.to_dict()
+        items.append({
+            "ProductName": data.get("productname"),
+            "Price": data.get("priceproduct", 0),
+            "numberproduct": data.get("numberproduct", 1),
+            "imageurl": data.get("image_url", "")
+        })
+
+    return jsonify(items)
+
 # Save product route
 # ------------------------------
 @app.route("/save_product", methods=["POST"])
