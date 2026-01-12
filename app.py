@@ -339,7 +339,7 @@ def save_product():
         slave_name = data.get("slave_name")
         view_modename = data.get("view_modename")
         view_productname = data.get("view_productname")
-        dataproduct = data.get("dataproduct")
+        ProductDetail = data.get("ProductDetail")
         priceproduct = data.get("priceproduct")
         preview_image_url = data.get("preview_image_url")
 
@@ -348,7 +348,7 @@ def save_product():
             slave_name,
             view_modename,
             view_productname,
-            dataproduct,
+            ProductDetail,
             priceproduct,
             preview_image_url
         ]):
@@ -388,7 +388,7 @@ def save_product():
         )
 
         doc_ref.set({
-            "dataproduct": dataproduct,
+            "ProductDetail": ProductDetail,
             "priceproduct": priceproduct,
             "image_url": image_url,
             "slave_name": slave_name,
