@@ -7,6 +7,8 @@ import firebase_admin
 from firebase_admin import credentials, storage, db as rtdb, firestore
 from werkzeug.security import generate_password_hash, check_password_hash
 from datetime import datetime, timedelta
+import time
+ 
 # ------------------------------------
 # Flask
 # ------------------------------------
@@ -161,6 +163,145 @@ def get_products_by_mode(name_ofm, slave_name, view_modename):
         return jsonify([]), 500
 
 #-------------------------------------
+@app.route("/get_preorder", methods=["GET"])
+def get_preorder():
+    nameOfm = request.args.get("nameOfm")
+    userName = request.args.get("userName")
+
+    if not nameOfm or not userName:
+        return jsonify({
+            "status": "error",
+            "message": "Missing nameOfm or userName"
+        }), 400
+
+    customer_ref = (
+        db.collection("OFM_name")
+          .document(nameOfm)
+          .collection("customers")
+          .document(userName)
+    )
+
+    customer_doc = customer_ref.get()
+
+    # 1️⃣ ถ้ายังไม่มี customer → สร้าง
+    if not customer_doc.exists:
+        customer_ref.set({
+            "activeOrderId": "",
+            "createdAt": datetime.utcnow()
+        }, merge=True)
+
+        customer_doc = customer_ref.get()
+
+    customer_data = customer_doc.to_dict() or {}
+    active_order_id = customer_data.get("activeOrderId", "")
+
+    # 2️⃣ ตรวจว่าต้องสร้าง order ใหม่ไหม
+    need_new_order = False
+
+    if active_order_id == "":
+        need_new_order = True
+    else:
+        check_ref = (
+            customer_ref
+              .collection("orders")
+              .document(active_order_id)
+        )
+        if not check_ref.get().exists:
+            need_new_order = True
+
+    # 3️⃣ สร้าง order ใหม่
+    if need_new_order:
+        timestamp_id = str(int(time.time() * 1000))
+
+        order_ref = (
+            customer_ref
+              .collection("orders")
+              .document(timestamp_id)
+        )
+
+        order_ref.set({
+            "status": "draft",
+            "Preorder": 0,
+            "createdAt": datetime.utcnow()
+        })
+
+        customer_ref.update({
+            "activeOrderId": timestamp_id
+        })
+
+        active_order_id = timestamp_id
+
+    # 4️⃣ อ่าน Preorder
+    order_ref = (
+        customer_ref
+          .collection("orders")
+          .document(active_order_id)
+    )
+
+    order_doc = order_ref.get()
+    order_data = order_doc.to_dict() or {}
+
+    return jsonify({
+        "status": "success",
+        "Preorder": order_data.get("Preorder", 0),
+        "orderId": active_order_id
+    })
+
+
+@app.route("/add_item_preorder", methods=["POST"])
+def add_item_preorder():
+    data = request.json or {}
+
+    nameOfm = data.get("nameOfm")
+    userName = data.get("userName")
+    orderId = data.get("orderId")
+
+    productname = data.get("productname")
+    priceproduct = data.get("priceproduct", 0)
+    image_url = data.get("image_url", "")
+
+    if not all([nameOfm, userName, orderId, productname]):
+        return jsonify({
+            "status": "error",
+            "message": "missing required fields"
+        }), 400
+
+    order_ref = (
+        db.collection("OFM_name")
+          .document(nameOfm)
+          .collection("customers")
+          .document(userName)
+          .collection("orders")
+          .document(orderId)
+    )
+
+    # 🔹 item ใหม่ (auto id)
+    item_ref = order_ref.collection("items").document()
+
+    item_ref.set({
+        "productname": productname,
+        "priceproduct": priceproduct,
+        "image_url": image_url,
+        "numberproduct": 1,
+        "status": "draft",
+        "created_at": datetime.utcnow()
+    })
+
+    # 🔹 update preorder count
+    order_doc = order_ref.get()
+    preorder = 0
+    if order_doc.exists:
+        preorder = order_doc.to_dict().get("Preorder", 0)
+
+    order_ref.update({
+        "Preorder": preorder + 1
+    })
+
+    return jsonify({
+        "status": "success",
+        "message": "item added"
+    })
+
  
 # Save product route
 # ------------------------------
