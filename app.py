@@ -150,7 +150,8 @@ def get_products_by_mode(name_ofm, slave_name, view_modename):
             data = d.to_dict() or {}
             products.append({
                 "ProductName": d.id,
-                "ProductDetail": data.get("dataproduct", ""),
+                "ProductDetail": data.get("dataproduct", ""), 
+             
                 "Price": data.get("priceproduct", 0),
                 "imageurl": data.get("image_url", ""),
             })
@@ -323,6 +324,7 @@ def get_order_items():
             "ProductName": data.get("productname"),
             "Price": data.get("priceproduct", 0),
             "numberproduct": data.get("numberproduct", 1),
+               
             "imageurl": data.get("image_url", "")
         })
 
@@ -389,6 +391,7 @@ def save_product():
 
         doc_ref.set({
             "dataproduct": dataproduct,
+            "productname":view_productname,
             "priceproduct": priceproduct,
             "image_url": image_url,
             "slave_name": slave_name,
