@@ -250,21 +250,28 @@ def get_customer():
         nameOfm = request.args.get("nameOfm")
         userName = request.args.get("userName")
 
-        ref = rtdb.reference(f"OFM_name/{nameOfm}/customers/{userName}")
-        data = ref.get()
+        doc_ref = (
+            db.collection("OFM_name")
+              .document(nameOfm)
+              .collection("customers")
+              .document(userName)
+        )
 
-        if not data:
+        doc = doc_ref.get()
+
+        if not doc.exists:
             return jsonify({}), 200
 
+        data = doc.to_dict()
+
         return jsonify({
-            "CustomerName": data.get("name"),
+            "CustomerName": data.get("username"),
             "PhoneNumber": data.get("phone"),
             "Address": data.get("address")
         }), 200
 
     except Exception as e:
         return jsonify({"error": str(e)}), 500
-
 
 #----------------------------------------------
 @app.route("/add_item_preorder", methods=["POST"])
