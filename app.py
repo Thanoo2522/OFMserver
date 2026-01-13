@@ -149,12 +149,13 @@ def get_products_by_mode(name_ofm, slave_name, view_modename):
         data = d.to_dict() or {}
         products.append({
             "ProductName": d.id,
-            "ProductDetail": data.get("dataproduct", ""),  # ✅ ต้องมีบรรทัดนี้
+            "ProductDetail": data.get("ProductDetail", ""),  # ✅ แก้ตรงนี้
             "Price": data.get("priceproduct", 0),
             "imageurl": data.get("image_url", ""),
         })
 
     return jsonify(products)
+
 
 
 #-------------------------------------
