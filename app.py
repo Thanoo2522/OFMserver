@@ -243,12 +243,35 @@ def get_preorder():
         "orderId": active_order_id
     })
 
+#---------------------------------------------
+@app.route("/get_customer", methods=["GET"])
+def get_customer():
+    try:
+        nameOfm = request.args.get("nameOfm")
+        userName = request.args.get("userName")
 
+        ref = rtdb.reference(f"OFM_name/{nameOfm}/customers/{userName}")
+        data = ref.get()
+
+        if not data:
+            return jsonify({}), 200
+
+        return jsonify({
+            "CustomerName": data.get("name"),
+            "PhoneNumber": data.get("phone"),
+            "Address": data.get("address")
+        }), 200
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+#----------------------------------------------
 @app.route("/add_item_preorder", methods=["POST"])
 def add_item_preorder():
     data = request.json or {}
 
-    print("RAW JSON ===>", data)  # 🔍 debug
+   #print("RAW JSON ===>", data)  # 🔍 debug
 
     nameOfm = data.get("nameOfm")
     userName = data.get("userName")
