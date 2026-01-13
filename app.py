@@ -248,6 +248,8 @@ def get_preorder():
 def add_item_preorder():
     data = request.json or {}
 
+    print("RAW JSON ===>", data)  # 🔍 debug
+
     nameOfm = data.get("nameOfm")
     userName = data.get("userName")
     orderId = data.get("orderId")
@@ -255,13 +257,10 @@ def add_item_preorder():
     productname = data.get("productname")
     priceproduct = data.get("priceproduct", 0)
     image_url = data.get("image_url", "")
-    ProductDetail = data.get("ProductDetail", "")
+    ProductDetail = data.get("productDetail", "")  # ✅ จุดสำคัญ
 
     if not all([nameOfm, userName, orderId, productname]):
-        return jsonify({
-            "status": "error",
-            "message": "missing required fields"
-        }), 400
+        return jsonify({"status": "error"}), 400
 
     order_ref = (
         db.collection("OFM_name")
@@ -272,12 +271,11 @@ def add_item_preorder():
           .document(orderId)
     )
 
-    item_ref = order_ref.collection("items").document()
-    item_ref.set({
-        "productname":productname,
-        "ProductDetail":ProductDetail,
-        "priceproduct":priceproduct,
-        "image_url":image_url,
+    order_ref.collection("items").document().set({
+        "productname": productname,
+        "ProductDetail": ProductDetail,
+        "priceproduct": priceproduct,
+        "image_url": image_url,
         "numberproduct": 1,
         "status": "draft",
         "created_at": datetime.utcnow()
@@ -285,17 +283,12 @@ def add_item_preorder():
 
     order_doc = order_ref.get()
     preorder = order_doc.to_dict().get("Preorder", 0) if order_doc.exists else 0
-
-    order_ref.update({
-        "Preorder": preorder + 1
-    })
+    order_ref.update({"Preorder": preorder + 1})
 
     return jsonify({
         "status": "success",
-        "message": "item added",
-        "orderId": orderId   # ✅ ส่งกลับ
+        "orderId": orderId
     })
-
 
 
 @app.route("/get_order_items", methods=["GET"])
