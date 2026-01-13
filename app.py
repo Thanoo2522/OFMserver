@@ -255,7 +255,7 @@ def add_item_preorder():
     productname = data.get("productname")
     priceproduct = data.get("priceproduct", 0)
     image_url = data.get("image_url", "")
-    ProductDetail = data.get("Product_Detail")
+    Product_Detail = data.get("Product_Detail","")
 
     if not all([nameOfm, userName, orderId, productname]):
         return jsonify({
@@ -275,7 +275,7 @@ def add_item_preorder():
     item_ref = order_ref.collection("items").document()
     item_ref.set({
         "productname": productname,
-        "ProductDetail": ProductDetail,
+        "ProductDetail": Product_Detail,
         "priceproduct": priceproduct,
         "image_url": image_url,
         "numberproduct": 1,
