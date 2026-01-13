@@ -51,6 +51,13 @@ def build_prefixes(text: str):
         prefixes.append(current)
     return prefixes
 
+
+@firestore.transactional
+def update_qty(transaction, ref, delta):
+    snap = ref.get(transaction=transaction)
+    qty = snap.get("numberproduct")
+    transaction.update(ref, {"numberproduct": max(qty + delta, 1)})
+
     #-----------โหลด หมวดทั้งหมด
 @app.route("/warehouse/modes", methods=["GET"])
 def get_warehouse_modes():
@@ -278,8 +285,6 @@ def get_customer():
 def add_item_preorder():
     data = request.json or {}
 
-   #print("RAW JSON ===>", data)  # 🔍 debug
-
     nameOfm = data.get("nameOfm")
     userName = data.get("userName")
     orderId = data.get("orderId")
@@ -287,7 +292,7 @@ def add_item_preorder():
     productname = data.get("productname")
     priceproduct = data.get("priceproduct", 0)
     image_url = data.get("image_url", "")
-    ProductDetail = data.get("productDetail", "")  # ✅ จุดสำคัญ
+    ProductDetail = data.get("productDetail", "")
 
     if not all([nameOfm, userName, orderId, productname]):
         return jsonify({"status": "error"}), 400
@@ -301,7 +306,13 @@ def add_item_preorder():
           .document(orderId)
     )
 
-    order_ref.collection("items").document().set({
+    # ✅ 1. สร้าง document ก่อน
+    item_ref = order_ref.collection("items").document()
+    itemId = item_ref.id   # 👈 ItemID ที่ Firestore สร้างให้
+
+    # ✅ 2. บันทึกข้อมูล
+    item_ref.set({
+        "itemId": itemId,              # (ใส่หรือไม่ใส่ก็ได้ แต่แนะนำ)
         "productname": productname,
         "ProductDetail": ProductDetail,
         "priceproduct": priceproduct,
@@ -311,14 +322,18 @@ def add_item_preorder():
         "created_at": datetime.utcnow()
     })
 
+    # ✅ 3. update preorder count
     order_doc = order_ref.get()
     preorder = order_doc.to_dict().get("Preorder", 0) if order_doc.exists else 0
     order_ref.update({"Preorder": preorder + 1})
 
+    # ✅ 4. ส่ง itemId กลับ
     return jsonify({
         "status": "success",
-        "orderId": orderId
+        "orderId": orderId,
+        "itemId": itemId
     })
+
 
 
 @app.route("/get_order_items", methods=["GET"])
@@ -339,15 +354,118 @@ def get_order_items():
     for d in items_ref:
         data = d.to_dict()
         items.append({
+            "ItemId": d.id,
             "ProductName": data.get("productname"),
-            "ProductDetail": data.get("ProductDetail", ""),  # ✅ เพิ่ม field นี้
-            "Price": data.get("priceproduct", 0),
-            "numberproduct": data.get("numberproduct", 1),
-            "imageurl": data.get("image_url", ""),
-            "quantity": data.get("numberproduct", 0)
+            "ProductDetail": data.get("ProductDetail"),
+            "Price": data.get("priceproduct"),
+            "numberproduct": data.get("numberproduct"),
+            "imageurl": data.get("image_url")
         })
 
     return jsonify(items)
+
+
+
+
+#increase_item_quantity
+@app.route("/increase_item_quantity", methods=["POST"])
+def increase_item_quantity():
+    data = request.json or {}
+
+    nameOfm = data.get("nameOfm")
+    userName = data.get("userName")
+    orderId = data.get("orderId")
+    itemId = data.get("itemId")
+
+    if not all([nameOfm, userName, orderId, itemId]):
+        return jsonify({"status": "error"}), 400
+
+    item_ref = (
+        db.collection("OFM_name")
+          .document(nameOfm)
+          .collection("customers")
+          .document(userName)
+          .collection("orders")
+          .document(orderId)
+          .collection("items")
+          .document(itemId)
+    )
+
+    item_doc = item_ref.get()
+    if not item_doc.exists:
+        return jsonify({"status": "not_found"}), 404
+
+    qty = item_doc.to_dict().get("numberproduct", 1)
+    item_ref.update({"numberproduct": qty + 1})
+
+    return jsonify({"status": "success"})
+
+#decrease_item_quantity
+@app.route("/decrease_item_quantity", methods=["POST"])
+def decrease_item_quantity():
+    data = request.json or {}
+
+    nameOfm = data.get("nameOfm")
+    userName = data.get("userName")
+    orderId = data.get("orderId")
+    itemId = data.get("itemId")
+
+    if not all([nameOfm, userName, orderId, itemId]):
+        return jsonify({"status": "error"}), 400
+
+    item_ref = (
+        db.collection("OFM_name")
+          .document(nameOfm)
+          .collection("customers")
+          .document(userName)
+          .collection("orders")
+          .document(orderId)
+          .collection("items")
+          .document(itemId)
+    )
+
+    item_doc = item_ref.get()
+    if not item_doc.exists:
+        return jsonify({"status": "not_found"}), 404
+
+    qty = item_doc.to_dict().get("numberproduct", 1)
+    if qty > 1:
+        item_ref.update({"numberproduct": qty - 1})
+
+    return jsonify({"status": "success"})
+
+#delete_item
+@app.route("/delete_item", methods=["POST"])
+def delete_item():
+    data = request.json or {}
+
+    nameOfm = data.get("nameOfm")
+    userName = data.get("userName")
+    orderId = data.get("orderId")
+    itemId = data.get("itemId")
+
+    if not all([nameOfm, userName, orderId, itemId]):
+        return jsonify({"status": "error"}), 400
+
+    order_ref = (
+        db.collection("OFM_name")
+          .document(nameOfm)
+          .collection("customers")
+          .document(userName)
+          .collection("orders")
+          .document(orderId)
+    )
+
+    item_ref = order_ref.collection("items").document(itemId)
+    item_ref.delete()
+
+    # update preorder count
+    order_doc = order_ref.get()
+    preorder = order_doc.to_dict().get("Preorder", 1)
+    order_ref.update({"Preorder": max(preorder - 1, 0)})
+
+    return jsonify({"status": "success"})
+
 
 
 # Save product route
