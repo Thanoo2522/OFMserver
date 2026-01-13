@@ -274,10 +274,10 @@ def add_item_preorder():
 
     item_ref = order_ref.collection("items").document()
     item_ref.set({
-        "productname": productname,
-        "ProductDetail": Product_Detail,
-        "priceproduct": priceproduct,
-        "image_url": image_url,
+        "productname":productname,
+        "ProductDetail":Product_Detail,
+        "priceproduct":priceproduct,
+        "image_url":image_url,
         "numberproduct": 1,
         "status": "draft",
         "created_at": datetime.utcnow()
@@ -386,9 +386,9 @@ def save_product():
         )
 
         doc_ref.set({
-            "dataproduct": dataproduct,
+            "dataproduct":dataproduct,
             "productname":view_productname,
-            "priceproduct": priceproduct,
+            "priceproduct":priceproduct,
             "image_url": image_url,
             "slave_name": slave_name,
             "created_at": datetime.utcnow()
