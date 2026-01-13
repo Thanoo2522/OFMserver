@@ -343,7 +343,8 @@ def get_order_items():
             "ProductDetail": data.get("ProductDetail", ""),  # ✅ เพิ่ม field นี้
             "Price": data.get("priceproduct", 0),
             "numberproduct": data.get("numberproduct", 1),
-            "imageurl": data.get("image_url", "")
+            "imageurl": data.get("image_url", ""),
+            "quantity": data.get("numberproduct", 0)
         })
 
     return jsonify(items)
