@@ -134,34 +134,28 @@ def get_shops_by_ofm(name_ofm):
 def get_products_by_mode(name_ofm, slave_name, view_modename):
     products = []
 
-    try:
-        docs = (
-            db.collection("OFM_name")
-              .document(name_ofm)
-              .collection("partner")
-              .document(slave_name)
-              .collection("mode")
-              .document(view_modename)
-              .collection("product")
-              .stream()
-        )
+    docs = (
+        db.collection("OFM_name")
+          .document(name_ofm)
+          .collection("partner")
+          .document(slave_name)
+          .collection("mode")
+          .document(view_modename)
+          .collection("product")
+          .stream()
+    )
 
-        for d in docs:
-            data = d.to_dict() or {}
-            products.append({
-                "ProductName": d.id,
-                "ProductDetail": data.get("dataproduct", ""), 
-             
-                "Price": data.get("priceproduct", 0),
-                "imageurl": data.get("image_url", ""),
-            })
+    for d in docs:
+        data = d.to_dict() or {}
+        products.append({
+            "ProductName": d.id,
+            "ProductDetail": data.get("dataproduct", ""),  # ✅ ต้องมีบรรทัดนี้
+            "Price": data.get("priceproduct", 0),
+            "imageurl": data.get("image_url", ""),
+        })
 
-        return jsonify(products)
+    return jsonify(products)
 
-    except Exception as e:
-        import traceback
-        traceback.print_exc()
-        return jsonify([]), 500
 
 #-------------------------------------
 @app.route("/get_preorder", methods=["GET"])
@@ -322,13 +316,14 @@ def get_order_items():
         data = d.to_dict()
         items.append({
             "ProductName": data.get("productname"),
+            "ProductDetail": data.get("ProductDetail", ""),  # ✅ เพิ่ม field นี้
             "Price": data.get("priceproduct", 0),
             "numberproduct": data.get("numberproduct", 1),
-               
             "imageurl": data.get("image_url", "")
         })
 
     return jsonify(items)
+
 
 # Save product route
 # ------------------------------
