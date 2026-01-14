@@ -294,6 +294,8 @@ def add_item_preorder():
     image_url = data.get("image_url", "")
     ProductDetail = data.get("productDetail", "")
 
+    Partnershop = data.get("partnershop", "")
+
     if not all([nameOfm, userName, orderId, productname]):
         return jsonify({"status": "error"}), 400
 
@@ -317,6 +319,7 @@ def add_item_preorder():
         "ProductDetail": ProductDetail,
         "priceproduct": priceproduct,
         "image_url": image_url,
+        "Partnershop": Partnershop,
         "numberproduct": 1,
         "status": "draft",
         "created_at": datetime.utcnow()
