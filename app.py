@@ -514,7 +514,8 @@ def get_order_items():
             "ProductDetail": data.get("ProductDetail"),
             "Price": data.get("priceproduct"),
             "numberproduct": data.get("numberproduct"),
-            "imageurl": data.get("image_url")
+            "imageurl": data.get("image_url"),
+            "Partnershop":data.get("Partnershop")
         })
 
     return jsonify(items)
