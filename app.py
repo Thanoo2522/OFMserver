@@ -401,7 +401,7 @@ def confirm_order():
         # ------------------------------------------------
         # 0) รับ parameter
         # ------------------------------------------------
-        nameOfm = request.args.get("nameOfm")
+        nameOfm  = request.args.get("nameOfm")
         userName = request.args.get("userName")
         orderId  = request.args.get("orderId")
 
@@ -415,6 +415,8 @@ def confirm_order():
 
         # ------------------------------------------------
         # 1) reference order (Firestore)
+        # path:
+        # OFM_name/{nameOfm}/customers/{username}/orders/{orderID}
         # ------------------------------------------------
         order_ref = (
             db.collection("OFM_name")
@@ -441,27 +443,21 @@ def confirm_order():
         })
 
         # ------------------------------------------------
-        # 3) load items
-        # path -> /items/items
+        # 3) load items (subcollection)
+        # path:
+        # .../orders/{orderID}/items/{itemID}
         # ------------------------------------------------
-        items_ref = (
-            order_ref
-            .collection("items")
-            .document("items")
-        )
-
-        items_doc = items_ref.get()
-        if not items_doc.exists:
-            return jsonify({
-                "success": False,
-                "error": "no items"
-            }), 400
-
-        items = items_doc.to_dict() or {}
+        items_ref = order_ref.collection("items")
+        items_docs = items_ref.stream()
 
         partner_items = {}
+        item_count = 0
 
-        for itemId, item in items.items():
+        for doc in items_docs:
+            item_count += 1
+            itemId = doc.id
+            item = doc.to_dict()
+
             partnershop = item.get("Partnershop")
             if not partnershop:
                 continue
@@ -477,6 +473,12 @@ def confirm_order():
 
             partner_items[partnershop]["items"][itemId] = item
             partner_items[partnershop]["totalPrice"] += price * qty
+
+        if item_count == 0:
+            return jsonify({
+                "success": False,
+                "error": "no items"
+            }), 400
 
         # ------------------------------------------------
         # 4) create notification + send FCM
