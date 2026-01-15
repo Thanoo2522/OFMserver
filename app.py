@@ -398,29 +398,66 @@ def check_partner_notification():
 @app.route("/confirm_order", methods=["POST"])
 def confirm_order():
     try:
-         
+        # ------------------------------------------------
+        # 0) รับ parameter
+        # ------------------------------------------------
         nameOfm = request.args.get("nameOfm")
         userName = request.args.get("userName")
-        orderId = request.args.get("orderId")
-    
+        orderId  = request.args.get("orderId")
+
+        print("CONFIRM_ORDER:", nameOfm, userName, orderId)
+
         if not all([nameOfm, userName, orderId]):
-            return jsonify({"error": "missing parameter"}), 400
+            return jsonify({
+                "success": False,
+                "error": "missing parameter"
+            }), 400
 
         # ------------------------------------------------
-        # 1) update order status
+        # 1) reference order (Firestore)
         # ------------------------------------------------
-        order_ref = rtdb.reference(
-            f'OFM_name/{nameOfm}/customers/{userName}/orders/{orderId}'
+        order_ref = (
+            db.collection("OFM_name")
+              .document(nameOfm)
+              .collection("customers")
+              .document(userName)
+              .collection("orders")
+              .document(orderId)
         )
 
+        order_doc = order_ref.get()
+        if not order_doc.exists:
+            return jsonify({
+                "success": False,
+                "error": "order not found"
+            }), 404
+
+        # ------------------------------------------------
+        # 2) update status order
+        # ------------------------------------------------
         order_ref.update({
-            "status": "orderconfirmed"
+            "status": "orderconfirmed",
+            "confirmedAt": firestore.SERVER_TIMESTAMP
         })
 
         # ------------------------------------------------
-        # 2) load items
+        # 3) load items
+        # path -> /items/items
         # ------------------------------------------------
-        items = order_ref.child("items").get() or {}
+        items_ref = (
+            order_ref
+            .collection("items")
+            .document("items")
+        )
+
+        items_doc = items_ref.get()
+        if not items_doc.exists:
+            return jsonify({
+                "success": False,
+                "error": "no items"
+            }), 400
+
+        items = items_doc.to_dict() or {}
 
         partner_items = {}
 
@@ -436,37 +473,49 @@ def confirm_order():
                 }
 
             price = float(item.get("priceproduct", 0))
-            qty = int(item.get("numberproduct", 1))
+            qty   = int(item.get("numberproduct", 1))
 
             partner_items[partnershop]["items"][itemId] = item
             partner_items[partnershop]["totalPrice"] += price * qty
 
         # ------------------------------------------------
-        # 3) create notification + send FCM per partner
+        # 4) create notification + send FCM
         # ------------------------------------------------
         for partnershop, data in partner_items.items():
 
-            # 🔔 save notification
-            notify_ref = rtdb.reference(
-                f'OFM_name/{nameOfm}/partner/{partnershop}/system/notification/{orderId}'
+            # 🔔 Firestore notification
+            db.collection("OFM_name") \
+              .document(nameOfm) \
+              .collection("partner") \
+              .document(partnershop) \
+              .collection("system") \
+              .document("notification") \
+              .collection("orders") \
+              .document(orderId) \
+              .set({
+                  "orderId": orderId,
+                  "nameOfm": nameOfm,
+                  "userName": userName,
+                  "partnershop": partnershop,
+                  "status": "neworder",
+                  "totalPrice": data["totalPrice"],
+                  "items": data["items"],
+                  "read": False,
+                  "createdAt": firestore.SERVER_TIMESTAMP
+              })
+
+            # 🔔 load FCM token
+            partner_doc = (
+                db.collection("OFM_name")
+                  .document(nameOfm)
+                  .collection("partner")
+                  .document(partnershop)
+                  .get()
             )
 
-            notify_ref.set({
-                "orderId": orderId,
-                "userName": userName,
-                "status": "neworder",
-                "totalPrice": data["totalPrice"],
-                "items": data["items"],
-                "read": False,
-                "createdAt": int(time.time())
-            })
-
-            # 🔔 load fcm token
-            partner_ref = rtdb.reference(
-                f'OFM_name/{nameOfm}/partner/{partnershop}'
-            )
-            partner_data = partner_ref.get() or {}
-            fcm_token = partner_data.get("fcmToken")
+            fcm_token = None
+            if partner_doc.exists:
+                fcm_token = partner_doc.to_dict().get("fcmToken")
 
             # 🔔 send FCM
             send_fcm_to_partner(
@@ -480,6 +529,9 @@ def confirm_order():
                 }
             )
 
+        # ------------------------------------------------
+        # 5) response
+        # ------------------------------------------------
         return jsonify({
             "success": True,
             "partnerCount": len(partner_items)
@@ -487,7 +539,10 @@ def confirm_order():
 
     except Exception as e:
         traceback.print_exc()
-        return jsonify({"error": str(e)}), 500
+        return jsonify({
+            "success": False,
+            "error": str(e)
+        }), 500
 
 #------------------------------------
 
