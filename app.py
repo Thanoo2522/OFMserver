@@ -398,9 +398,14 @@ def check_partner_notification():
 @app.route("/confirm_order", methods=["POST"])
 def confirm_order():
     try:
+         
         nameOfm = request.args.get("nameOfm")
         userName = request.args.get("userName")
         orderId = request.args.get("orderId")
+        print("🔥 confirm_order called")
+        print("nameOfm:", nameOfm)
+        print("userName:", userName)
+        print("orderId:", orderId)
 
         if not all([nameOfm, userName, orderId]):
             return jsonify({"error": "missing parameter"}), 400
