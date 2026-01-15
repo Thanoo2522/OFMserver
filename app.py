@@ -4,10 +4,14 @@ import requests
 from io import BytesIO
 from PIL import Image
 import firebase_admin
-from firebase_admin import credentials, storage, db as rtdb, firestore
+from firebase_admin import credentials, storage, db as rtdb, firestore, messaging
+
 from werkzeug.security import generate_password_hash, check_password_hash
 from datetime import datetime, timedelta
 import time
+ 
+ 
+
  
 # ------------------------------------
 # Flask
@@ -42,6 +46,26 @@ bucket = storage.bucket()
 # ------------------------------------
 # Utils
 # ------------------------------------
+    #-----ฟังก์ชันส่ง FCM (Backend) Firebase Cloud Messaging (FCM) แจ้งร้าน
+def send_fcm_to_partner(fcm_token, title, body, data=None):
+    try:
+        if not fcm_token:
+            return
+
+        message = messaging.Message(
+            notification=messaging.Notification(
+                title=title,
+                body=body
+            ),
+            data=data or {},
+            token=fcm_token
+        )
+
+        messaging.send(message)
+
+    except Exception as e:
+        print("❌ FCM error:", e)
+        #------------------------------
 def build_prefixes(text: str):
     text = text.lower().strip()
     prefixes = []
@@ -57,6 +81,9 @@ def update_qty(transaction, ref, delta):
     snap = ref.get(transaction=transaction)
     qty = snap.get("numberproduct")
     transaction.update(ref, {"numberproduct": max(qty + delta, 1)})
+
+
+
 
     #-----------โหลด หมวดทั้งหมด
 @app.route("/warehouse/modes", methods=["GET"])
@@ -336,8 +363,132 @@ def add_item_preorder():
         "orderId": orderId,
         "itemId": itemId
     })
+#-----------------------API สำหรับเช็ค notification ใหม่
+@app.route("/check_partner_notification", methods=["GET"])
+def check_partner_notification():
+    try:
+        nameOfm = request.args.get("nameOfm")
+        partnershop = request.args.get("partnershop")
+
+        if not all([nameOfm, partnershop]):
+            return jsonify({"hasNew": False})
+
+        notify_ref = rtdb.reference(
+            f'OFM_name/{nameOfm}/partner/{partnershop}/system/notification'
+        )
+
+        data = notify_ref.get() or {}
+
+        for orderId, n in data.items():
+            if n.get("read") is False:
+                return jsonify({
+                    "hasNew": True,
+                    "orderId": orderId,
+                    "totalPrice": n.get("totalPrice", 0)
+                })
+
+        return jsonify({"hasNew": False})
+
+    except Exception as e:
+        traceback.print_exc()
+        return jsonify({"hasNew": False})
 
 
+#-----------------------------------
+@app.route("/confirm_order", methods=["POST"])
+def confirm_order():
+    try:
+        nameOfm = request.args.get("nameOfm")
+        userName = request.args.get("userName")
+        orderId = request.args.get("orderId")
+
+        if not all([nameOfm, userName, orderId]):
+            return jsonify({"error": "missing parameter"}), 400
+
+        # ------------------------------------------------
+        # 1) update order status
+        # ------------------------------------------------
+        order_ref = rtdb.reference(
+            f'OFM_name/{nameOfm}/customers/{userName}/orders/{orderId}'
+        )
+
+        order_ref.update({
+            "status": "orderconfirmed"
+        })
+
+        # ------------------------------------------------
+        # 2) load items
+        # ------------------------------------------------
+        items = order_ref.child("items").get() or {}
+
+        partner_items = {}
+
+        for itemId, item in items.items():
+            partnershop = item.get("partnershop")
+            if not partnershop:
+                continue
+
+            if partnershop not in partner_items:
+                partner_items[partnershop] = {
+                    "items": {},
+                    "totalPrice": 0
+                }
+
+            price = float(item.get("price", 0))
+            qty = int(item.get("numberproduct", 1))
+
+            partner_items[partnershop]["items"][itemId] = item
+            partner_items[partnershop]["totalPrice"] += price * qty
+
+        # ------------------------------------------------
+        # 3) create notification + send FCM per partner
+        # ------------------------------------------------
+        for partnershop, data in partner_items.items():
+
+            # 🔔 save notification
+            notify_ref = rtdb.reference(
+                f'OFM_name/{nameOfm}/partner/{partnershop}/system/notification/{orderId}'
+            )
+
+            notify_ref.set({
+                "orderId": orderId,
+                "userName": userName,
+                "status": "neworder",
+                "totalPrice": data["totalPrice"],
+                "items": data["items"],
+                "read": False,
+                "createdAt": int(time.time())
+            })
+
+            # 🔔 load fcm token
+            partner_ref = rtdb.reference(
+                f'OFM_name/{nameOfm}/partner/{partnershop}'
+            )
+            partner_data = partner_ref.get() or {}
+            fcm_token = partner_data.get("fcmToken")
+
+            # 🔔 send FCM
+            send_fcm_to_partner(
+                fcm_token,
+                title="มีออเดอร์ใหม่",
+                body=f"ยอดรวม {data['totalPrice']:.0f} บาท",
+                data={
+                    "orderId": orderId,
+                    "partnershop": partnershop,
+                    "type": "new_order"
+                }
+            )
+
+        return jsonify({
+            "success": True,
+            "partnerCount": len(partner_items)
+        })
+
+    except Exception as e:
+        traceback.print_exc()
+        return jsonify({"error": str(e)}), 500
+
+#------------------------------------
 
 @app.route("/get_order_items", methods=["GET"])
 def get_order_items():
