@@ -402,11 +402,7 @@ def confirm_order():
         nameOfm = request.args.get("nameOfm")
         userName = request.args.get("userName")
         orderId = request.args.get("orderId")
-        print("🔥 confirm_order called")
-        print("nameOfm:", nameOfm)
-        print("userName:", userName)
-        print("orderId:", orderId)
-
+    
         if not all([nameOfm, userName, orderId]):
             return jsonify({"error": "missing parameter"}), 400
 
@@ -429,7 +425,7 @@ def confirm_order():
         partner_items = {}
 
         for itemId, item in items.items():
-            partnershop = item.get("partnershop")
+            partnershop = item.get("Partnershop")
             if not partnershop:
                 continue
 
@@ -439,7 +435,7 @@ def confirm_order():
                     "totalPrice": 0
                 }
 
-            price = float(item.get("price", 0))
+            price = float(item.get("priceproduct", 0))
             qty = int(item.get("numberproduct", 1))
 
             partner_items[partnershop]["items"][itemId] = item
