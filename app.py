@@ -870,10 +870,6 @@ def search_adminmaster():
 # ------------------------------------
 @app.route("/get_market_page/<name_ofm>", methods=["GET"])
 def get_market_page(name_ofm):
-    """
-    1 call สำหรับหน้า user shopping
-    scale: ร้าน 10k / user 10k
-    """
     result = {
         "modes": [],
         "shops": {}
@@ -889,27 +885,14 @@ def get_market_page(name_ofm):
           .collection("modproduct")
           .stream()
     ]
-
     result["modes"] = modes
 
     # ------------------------
-    # 2) โหลดร้านทั้งหมด
-    # ------------------------
-    partners = [
-        p.id for p in
-        db.collection("OFM_name")
-          .document(name_ofm)
-          .collection("partner")
-          .stream()
-    ]
-
-    # ------------------------
-    # 3) โหลดสินค้าทั้งหมด (ครั้งเดียว)
+    # 2) โหลดสินค้าทั้งหมด (collection_group ที่ถูกต้อง)
     # ------------------------
     products = (
-        db.collection("OFM_name")
-          .document(name_ofm)
-          .collection_group("products")
+        db.collection_group("products")
+          .where("nameOfm", "==", name_ofm)
           .stream()
     )
 
@@ -932,12 +915,13 @@ def get_market_page(name_ofm):
         })
 
     # ------------------------
-    # 4) ใส่เฉพาะร้านที่มีสินค้า
+    # 3) ใส่เฉพาะร้านที่มีสินค้า
     # ------------------------
     for mode in modes:
         result["shops"][mode] = index.get(mode, {})
 
     return jsonify(result)
+
 
 # ------------------------------------
  
