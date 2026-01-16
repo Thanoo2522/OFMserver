@@ -129,8 +129,8 @@ def get_warehouse_images_by_mode(mode):
 @app.route("/lab/step2")
 def step2():
     docs = db.collection_group("product") \
-             .where("nameOfm", "==", "ตลาดสดมารวย") \
-             .where("mode", "==", "อาหารตามสั่งราดข้าว") \
+             .where("productname", "==", "สามแม่ครัว") \
+                .where("slave_name", "==", "seafood") \
              .stream()
     return jsonify([d.id for d in docs])
 
