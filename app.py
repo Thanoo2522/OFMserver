@@ -145,41 +145,39 @@ def get_modes_by_ofm(name_ofm):
 
 #---ดึงร้านค้า
 # --- ดึงร้านค้า
-@app.route("/get_shops/<name_ofm>", methods=["GET"])
-def get_shops_by_ofm(name_ofm):
+@app.route("/get_shops_by_mode/<name_ofm>/<mode_name>", methods=["GET"])
+def get_shops_by_mode(name_ofm, mode_name):
     shops = []
 
-    docs = (
+    # ดึง partner ทั้งหมดของ OFM
+    partner_docs = (
         db.collection("OFM_name")
           .document(name_ofm)
           .collection("partner")
           .stream()
     )
 
-    for d in docs:
-        shops.append(d.id)  # ใช้ชื่อ document เป็นชื่อร้าน
+    for p in partner_docs:
+        slave_name = p.id
+
+        # เช็คว่าร้านนี้มี mode ที่เลือกไหม
+        mode_ref = (
+            db.collection("OFM_name")
+              .document(name_ofm)
+              .collection("partner")
+              .document(slave_name)
+              .collection("mode")
+              .document(mode_name)
+        )
+
+        if mode_ref.get().exists:
+            shops.append(slave_name)
 
     return jsonify(shops)
+
+
 #---------------------------------------------------------
-@app.route("/get_shops_by_mode/<name_ofm>/<user_name>/<mode_name>", methods=["GET"])
-def get_shops_by_mode(name_ofm, user_name, mode_name):
-    shops = []
-
-    docs = (
-        db.collection("OFM_name")
-          .document(name_ofm)
-          .collection("partner")
-          .document(user_name)
-          .collection("mode")
-          .document(mode_name)
-          .collection("shops")
-          .stream()
-    )
-
-    for d in docs:
-        shops.append(d.id)   # slave_name
-
-    return jsonify(shops)
+ 
 
 
 #---ดึงสินค้า
