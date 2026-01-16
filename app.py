@@ -126,18 +126,11 @@ def get_warehouse_images_by_mode(mode):
     return jsonify(images)
 
 #---
-@app.route("/test_products")
-def test_products():
-    result = []
-    docs = db.collection_group("product").limit(5).stream()
+@app.route("/lab/step0")
+def step0():
+    docs = db.collection_group("product").limit(3).stream()
+    return jsonify([d.reference.path for d in docs])
 
-    for d in docs:
-        result.append({
-            "path": d.reference.path,
-            "data": d.to_dict()
-        })
-
-    return jsonify(result)
 # --- ดึงหมวดสินค้า
 @app.route("/get_modes/<name_ofm>", methods=["GET"])
 def get_modes_by_ofm(name_ofm):
