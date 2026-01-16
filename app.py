@@ -124,45 +124,7 @@ def get_warehouse_images_by_mode(mode):
 
     return jsonify(images)
 
-#---
-@app.route("/get_shops_with_modes/<name_ofm>", methods=["GET"])
-def get_shops_with_modes(name_ofm):
-    """
-    return:
-    {
-        "ร้านA": ["ผัก", "เนื้อ"],
-        "ร้านB": ["อาหารทะเล"]
-    }
-    """
-    result = {}
-
-    partners = (
-        db.collection("OFM_name")
-          .document(name_ofm)
-          .collection("partner")
-          .stream()
-    )
-
-    for p in partners:
-        slave_name = p.id
-        modes = []
-
-        mode_docs = (
-            db.collection("OFM_name")
-              .document(name_ofm)
-              .collection("partner")
-              .document(slave_name)
-              .collection("mode")
-              .stream()
-        )
-
-        for m in mode_docs:
-            modes.append(m.id)
-
-        result[slave_name] = modes
-
-    return jsonify(result)
-
+#---ดึงหมวดสินค้า
 # --- ดึงหมวดสินค้า
 @app.route("/get_modes/<name_ofm>", methods=["GET"])
 def get_modes_by_ofm(name_ofm):
