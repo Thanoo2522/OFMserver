@@ -160,6 +160,26 @@ def get_shops_by_ofm(name_ofm):
         shops.append(d.id)  # ใช้ชื่อ document เป็นชื่อร้าน
 
     return jsonify(shops)
+#---------------------------------------------------------
+@app.route("/get_shops_by_mode/<name_ofm>/<user_name>/<mode_name>", methods=["GET"])
+def get_shops_by_mode(name_ofm, user_name, mode_name):
+    shops = []
+
+    docs = (
+        db.collection("OFM_name")
+          .document(name_ofm)
+          .collection("partner")
+          .document(user_name)
+          .collection("mode")
+          .document(mode_name)
+          .collection("shops")
+          .stream()
+    )
+
+    for d in docs:
+        shops.append(d.id)   # slave_name
+
+    return jsonify(shops)
 
 
 #---ดึงสินค้า
