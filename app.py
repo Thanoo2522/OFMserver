@@ -891,7 +891,7 @@ def get_market_page(name_ofm):
     # 2) โหลดสินค้าทั้งหมด (collection_group ที่ถูกต้อง)
     # ------------------------
     products = (
-        db.collection_group("products")
+        db.collection_group("product")
           .where("nameOfm", "==", name_ofm)
           .stream()
     )
