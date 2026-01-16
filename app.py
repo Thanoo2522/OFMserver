@@ -1,3 +1,4 @@
+from itertools import product
 from flask import Flask, request, jsonify
 import os, json, io, traceback
 import requests
@@ -124,7 +125,19 @@ def get_warehouse_images_by_mode(mode):
 
     return jsonify(images)
 
-#---ดึงหมวดสินค้า
+#---
+@app.route("/test_products")
+def test_products():
+    result = []
+    docs = db.collection_group("product").limit(5).stream()
+
+    for d in docs:
+        result.append({
+            "path": d.reference.path,
+            "data": d.to_dict()
+        })
+
+    return jsonify(result)
 # --- ดึงหมวดสินค้า
 @app.route("/get_modes/<name_ofm>", methods=["GET"])
 def get_modes_by_ofm(name_ofm):
@@ -891,7 +904,7 @@ def get_market_page(name_ofm):
     # 2) โหลดสินค้าทั้งหมด (collection_group ที่ถูกต้อง)
     # ------------------------
     products = (
-        db.collection_group("partner")
+        db.collection_group("product")
           .where("nameOfm", "==", name_ofm)
           .stream()
     )
@@ -899,7 +912,7 @@ def get_market_page(name_ofm):
     # index: mode -> shop -> products
     index = {}
 
-    for p in products:
+    for p in product:
         d = p.to_dict()
         mode = d.get("mode")
         shop = d.get("partnershop")
