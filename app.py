@@ -414,14 +414,17 @@ def confirm_order():
             }), 400
 
         # ------------------------------------------------
-        # 1) reference order
-        # OFM_name/{nameOfm}/customers/{userName}/orders/{orderId}
+        # 1) reference customer + order
         # ------------------------------------------------
-        order_ref = (
+        customer_ref = (
             db.collection("OFM_name")
               .document(nameOfm)
               .collection("customers")
               .document(userName)
+        )
+
+        order_ref = (
+            customer_ref
               .collection("orders")
               .document(orderId)
         )
@@ -434,15 +437,23 @@ def confirm_order():
             }), 404
 
         # ------------------------------------------------
-        # 2) update status order
+        # 2) update order (confirm)
         # ------------------------------------------------
         order_ref.update({
             "status": "orderconfirmed",
+            "Preorder": 0,   # ✅ ปิดสถานะ preorder
             "confirmedAt": firestore.SERVER_TIMESTAMP
         })
 
         # ------------------------------------------------
-        # 3) load items + แยกตาม Partnershop
+        # 3) clear activeOrderId ของ customer
+        # ------------------------------------------------
+        customer_ref.update({
+            "activeOrderId": ""
+        })
+
+        # ------------------------------------------------
+        # 4) load items + แยกตาม Partnershop
         # ------------------------------------------------
         items_ref = order_ref.collection("items")
         items_docs = items_ref.stream()
@@ -461,10 +472,10 @@ def confirm_order():
 
             if partnershop not in partner_items:
                 partner_items[partnershop] = {
-                    "items": []   # ✅ list ของ itemId
+                    "items": []
                 }
 
-            # ✅ เก็บเฉพาะ itemId
+            # เก็บเฉพาะ itemId
             partner_items[partnershop]["items"].append(itemId)
 
         if item_count == 0:
@@ -474,7 +485,7 @@ def confirm_order():
             }), 400
 
         # ------------------------------------------------
-        # 4) create notification (แยกร้าน)
+        # 5) create notification (แยกร้าน)
         # ------------------------------------------------
         for partnershop, data in partner_items.items():
 
@@ -497,7 +508,7 @@ def confirm_order():
               })
 
         # ------------------------------------------------
-        # 5) response
+        # 6) response
         # ------------------------------------------------
         return jsonify({
             "success": True,
@@ -510,7 +521,6 @@ def confirm_order():
             "success": False,
             "error": str(e)
         }), 500
-
 
 #------------------------------------
 
