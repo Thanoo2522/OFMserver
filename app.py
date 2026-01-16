@@ -443,7 +443,6 @@ def confirm_order():
 
         # ------------------------------------------------
         # 3) load items + แยกตาม Partnershop
-        # .../orders/{orderId}/items/{itemId}
         # ------------------------------------------------
         items_ref = order_ref.collection("items")
         items_docs = items_ref.stream()
@@ -462,11 +461,11 @@ def confirm_order():
 
             if partnershop not in partner_items:
                 partner_items[partnershop] = {
-                    "items": {}
+                    "items": []   # ✅ list ของ itemId
                 }
 
-            # แยก itemId ต่อร้าน
-            partner_items[partnershop]["items"][itemId] = item
+            # ✅ เก็บเฉพาะ itemId
+            partner_items[partnershop]["items"].append(itemId)
 
         if item_count == 0:
             return jsonify({
@@ -492,12 +491,10 @@ def confirm_order():
                   "nameOfm": nameOfm,
                   "userName": userName,
                   "partnershop": partnershop,
-                  "items": data["items"],   # itemId แยกตามร้าน
+                  "items": data["items"],   # ["itemID1", "itemID2"]
                   "read": False,
                   "createdAt": firestore.SERVER_TIMESTAMP
               })
-
-            # (ถ้าต้องการส่ง FCM ต่อ สามารถคง logic เดิมไว้ได้)
 
         # ------------------------------------------------
         # 5) response
@@ -513,6 +510,7 @@ def confirm_order():
             "success": False,
             "error": str(e)
         }), 500
+
 
 #------------------------------------
 
