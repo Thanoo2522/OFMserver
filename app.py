@@ -126,10 +126,14 @@ def get_warehouse_images_by_mode(mode):
     return jsonify(images)
 
 #---
-@app.route("/lab/step0")
-def step0():
-    docs = db.collection_group("product").limit(3).stream()
-    return jsonify([d.reference.path for d in docs])
+@app.route("/lab/step2")
+def step2():
+    docs = db.collection_group("product") \
+             .where("nameOfm", "==", "ตลาดสดมารวย") \
+             .where("mode", "==", "อาหารตามสั่งราดข้าว") \
+             .stream()
+    return jsonify([d.id for d in docs])
+
 
 # --- ดึงหมวดสินค้า
 @app.route("/get_modes/<name_ofm>", methods=["GET"])
