@@ -149,18 +149,16 @@ def get_modes_by_ofm(name_ofm):
 def get_shops_by_mode(name_ofm, mode_name):
     shops = []
 
-    # ดึง partner ทั้งหมดของ OFM
-    partner_docs = (
+    partners = (
         db.collection("OFM_name")
           .document(name_ofm)
           .collection("partner")
           .stream()
     )
 
-    for p in partner_docs:
+    for p in partners:
         slave_name = p.id
 
-        # เช็คว่าร้านนี้มี mode ที่เลือกไหม
         mode_ref = (
             db.collection("OFM_name")
               .document(name_ofm)
@@ -174,6 +172,7 @@ def get_shops_by_mode(name_ofm, mode_name):
             shops.append(slave_name)
 
     return jsonify(shops)
+
 
 
 #---------------------------------------------------------
