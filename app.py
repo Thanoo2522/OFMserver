@@ -145,24 +145,35 @@ def get_modes_by_ofm(name_ofm):
 
 #---ดึงร้านค้า
 # --- ดึงร้านค้า
-@app.route("/get_shops/<name_ofm>", methods=["GET"])
-def get_shops_by_ofm(name_ofm):
+ 
+
+#---ดึงสินค้า
+@app.route("/get_shops_by_mode/<nameOfm>/<mode>", methods=["GET"])
+def get_shops_by_mode(nameOfm, mode):
     shops = []
 
-    docs = (
+    partners = (
         db.collection("OFM_name")
-          .document(name_ofm)
+          .document(nameOfm)
           .collection("partner")
           .stream()
     )
 
-    for d in docs:
-        shops.append(d.id)  # ใช้ชื่อ document เป็นชื่อร้าน
+    for p in partners:
+        mode_ref = (
+            db.collection("OFM_name")
+              .document(nameOfm)
+              .collection("partner")
+              .document(p.id)
+              .collection("mode")
+              .document(mode)
+        )
+
+        if mode_ref.get().exists:
+            shops.append(p.id)
 
     return jsonify(shops)
 
-
-#---ดึงสินค้า
 # --- ดึงสินค้า
 @app.route("/get_products/<name_ofm>/<slave_name>/<view_modename>", methods=["GET"])
 def get_products_by_mode(name_ofm, slave_name, view_modename):
