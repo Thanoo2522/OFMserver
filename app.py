@@ -165,6 +165,13 @@ def get_shops_by_ofm(name_ofm):
 #---
 @app.route("/get_shops_with_modes/<name_ofm>", methods=["GET"])
 def get_shops_with_modes(name_ofm):
+    """
+    return:
+    {
+        "shopA": ["ผัก", "เนื้อ"],
+        "shopB": ["อาหารทะเล"]
+    }
+    """
     result = {}
 
     partners = (
@@ -190,9 +197,11 @@ def get_shops_with_modes(name_ofm):
         for m in mode_docs:
             modes.append(m.id)
 
+        # แม้ไม่มี mode ก็ยังส่ง [] กลับ (ฝั่ง MAUI จะกรองเอง)
         result[slave_name] = modes
 
     return jsonify(result)
+
 
 # --- ดึงสินค้า
 @app.route("/get_products/<name_ofm>/<slave_name>/<view_modename>", methods=["GET"])
