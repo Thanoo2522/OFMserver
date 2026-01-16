@@ -124,7 +124,45 @@ def get_warehouse_images_by_mode(mode):
 
     return jsonify(images)
 
-#---ดึงหมวดสินค้า
+#---
+@app.route("/get_shops_with_modes/<name_ofm>", methods=["GET"])
+def get_shops_with_modes(name_ofm):
+    """
+    return:
+    {
+        "ร้านA": ["ผัก", "เนื้อ"],
+        "ร้านB": ["อาหารทะเล"]
+    }
+    """
+    result = {}
+
+    partners = (
+        db.collection("OFM_name")
+          .document(name_ofm)
+          .collection("partner")
+          .stream()
+    )
+
+    for p in partners:
+        slave_name = p.id
+        modes = []
+
+        mode_docs = (
+            db.collection("OFM_name")
+              .document(name_ofm)
+              .collection("partner")
+              .document(slave_name)
+              .collection("mode")
+              .stream()
+        )
+
+        for m in mode_docs:
+            modes.append(m.id)
+
+        result[slave_name] = modes
+
+    return jsonify(result)
+
 # --- ดึงหมวดสินค้า
 @app.route("/get_modes/<name_ofm>", methods=["GET"])
 def get_modes_by_ofm(name_ofm):
@@ -162,47 +200,7 @@ def get_shops_by_ofm(name_ofm):
     return jsonify(shops)
 
 
-#---
-@app.route("/get_shops_with_modes/<name_ofm>", methods=["GET"])
-def get_shops_with_modes(name_ofm):
-    """
-    return:
-    {
-        "shopA": ["ผัก", "เนื้อ"],
-        "shopB": ["อาหารทะเล"]
-    }
-    """
-    result = {}
-
-    partners = (
-        db.collection("OFM_name")
-          .document(name_ofm)
-          .collection("partner")
-          .stream()
-    )
-
-    for p in partners:
-        slave_name = p.id
-        modes = []
-
-        mode_docs = (
-            db.collection("OFM_name")
-              .document(name_ofm)
-              .collection("partner")
-              .document(slave_name)
-              .collection("mode")
-              .stream()
-        )
-
-        for m in mode_docs:
-            modes.append(m.id)
-
-        # แม้ไม่มี mode ก็ยังส่ง [] กลับ (ฝั่ง MAUI จะกรองเอง)
-        result[slave_name] = modes
-
-    return jsonify(result)
-
-
+#---ดึงสินค้า
 # --- ดึงสินค้า
 @app.route("/get_products/<name_ofm>/<slave_name>/<view_modename>", methods=["GET"])
 def get_products_by_mode(name_ofm, slave_name, view_modename):
