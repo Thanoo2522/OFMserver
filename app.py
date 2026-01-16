@@ -868,41 +868,81 @@ def search_adminmaster():
     return jsonify([{"OFM_name": d.to_dict().get("OFM_name")} for d in docs])
 
 # ------------------------------------
-# Hierarchical Storage APIs
+@app.route("/get_market_page/<name_ofm>", methods=["GET"])
+def get_market_page(name_ofm):
+    """
+    1 call สำหรับหน้า user shopping
+    scale: ร้าน 10k / user 10k
+    """
+    result = {
+        "modes": [],
+        "shops": {}
+    }
+
+    # ------------------------
+    # 1) โหลด modes
+    # ------------------------
+    modes = [
+        d.id for d in
+        db.collection("OFM_name")
+          .document(name_ofm)
+          .collection("modproduct")
+          .stream()
+    ]
+
+    result["modes"] = modes
+
+    # ------------------------
+    # 2) โหลดร้านทั้งหมด
+    # ------------------------
+    partners = [
+        p.id for p in
+        db.collection("OFM_name")
+          .document(name_ofm)
+          .collection("partner")
+          .stream()
+    ]
+
+    # ------------------------
+    # 3) โหลดสินค้าทั้งหมด (ครั้งเดียว)
+    # ------------------------
+    products = (
+        db.collection("OFM_name")
+          .document(name_ofm)
+          .collection_group("products")
+          .stream()
+    )
+
+    # index: mode -> shop -> products
+    index = {}
+
+    for p in products:
+        d = p.to_dict()
+        mode = d.get("mode")
+        shop = d.get("partnershop")
+
+        if not mode or not shop:
+            continue
+
+        index.setdefault(mode, {}).setdefault(shop, []).append({
+            "ProductName": d.get("ProductName"),
+            "ProductDetail": d.get("ProductDetail"),
+            "Price": d.get("Price"),
+            "imageurl": d.get("imageurl")
+        })
+
+    # ------------------------
+    # 4) ใส่เฉพาะร้านที่มีสินค้า
+    # ------------------------
+    for mode in modes:
+        result["shops"][mode] = index.get(mode, {})
+
+    return jsonify(result)
+
 # ------------------------------------
-@app.route("/get_shops", methods=["GET"])
-def get_shops():
-    ofm = request.args.get("ofm")
-    if not ofm:
-        return jsonify({"error": "missing ofm"}), 400
+ 
 
-    prefix = f"{ofm}/"
-    shops = set()
-
-    for blob in bucket.list_blobs(prefix=prefix):
-        parts = blob.name.split("/")
-        if len(parts) >= 2:
-            shops.add(parts[1])
-
-    return jsonify({"ofm": ofm, "shops": sorted(shops)})
-
-@app.route("/get_modes", methods=["GET"])
-def get_modes():
-    ofm = request.args.get("ofm")
-    shop = request.args.get("shop")
-
-    if not ofm or not shop:
-        return jsonify({"error": "missing params"}), 400
-
-    prefix = f"{ofm}/{shop}/"
-    modes = set()
-
-    for blob in bucket.list_blobs(prefix=prefix):
-        parts = blob.name.split("/")
-        if len(parts) >= 3:
-            modes.add(parts[2])
-
-    return jsonify({"shop": shop, "modes": sorted(modes)})
+ 
 
 @app.route("/get_images", methods=["GET"])
 def get_images():
