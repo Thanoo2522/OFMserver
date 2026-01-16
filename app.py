@@ -145,9 +145,27 @@ def get_modes_by_ofm(name_ofm):
 
 #---ดึงร้านค้า
 # --- ดึงร้านค้า
-@app.route("/get_shops_by_mode/<name_ofm>/<mode_name>", methods=["GET"])
-def get_shops_by_mode(name_ofm, mode_name):
+@app.route("/get_shops/<name_ofm>", methods=["GET"])
+def get_shops_by_ofm(name_ofm):
     shops = []
+
+    docs = (
+        db.collection("OFM_name")
+          .document(name_ofm)
+          .collection("partner")
+          .stream()
+    )
+
+    for d in docs:
+        shops.append(d.id)  # ใช้ชื่อ document เป็นชื่อร้าน
+
+    return jsonify(shops)
+
+
+#---
+@app.route("/get_shops_with_modes/<name_ofm>", methods=["GET"])
+def get_shops_with_modes(name_ofm):
+    result = {}
 
     partners = (
         db.collection("OFM_name")
@@ -158,28 +176,24 @@ def get_shops_by_mode(name_ofm, mode_name):
 
     for p in partners:
         slave_name = p.id
+        modes = []
 
-        mode_ref = (
+        mode_docs = (
             db.collection("OFM_name")
               .document(name_ofm)
               .collection("partner")
               .document(slave_name)
               .collection("mode")
-              .document(mode_name)
+              .stream()
         )
 
-        if mode_ref.get().exists:
-            shops.append(slave_name)
+        for m in mode_docs:
+            modes.append(m.id)
 
-    return jsonify(shops)
+        result[slave_name] = modes
 
+    return jsonify(result)
 
-
-#---------------------------------------------------------
- 
-
-
-#---ดึงสินค้า
 # --- ดึงสินค้า
 @app.route("/get_products/<name_ofm>/<slave_name>/<view_modename>", methods=["GET"])
 def get_products_by_mode(name_ofm, slave_name, view_modename):
