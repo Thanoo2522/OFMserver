@@ -414,9 +414,8 @@ def confirm_order():
             }), 400
 
         # ------------------------------------------------
-        # 1) reference order (Firestore)
-        # path:
-        # OFM_name/{nameOfm}/customers/{username}/orders/{orderID}
+        # 1) reference order
+        # OFM_name/{nameOfm}/customers/{userName}/orders/{orderId}
         # ------------------------------------------------
         order_ref = (
             db.collection("OFM_name")
@@ -443,9 +442,8 @@ def confirm_order():
         })
 
         # ------------------------------------------------
-        # 3) load items (subcollection)
-        # path:
-        # .../orders/{orderID}/items/{itemID}
+        # 3) load items + แยกตาม Partnershop
+        # .../orders/{orderId}/items/{itemId}
         # ------------------------------------------------
         items_ref = order_ref.collection("items")
         items_docs = items_ref.stream()
@@ -464,15 +462,11 @@ def confirm_order():
 
             if partnershop not in partner_items:
                 partner_items[partnershop] = {
-                    "items": {},
-                    "totalPrice": 0
+                    "items": {}
                 }
 
-            price = float(item.get("priceproduct", 0))
-            qty   = int(item.get("numberproduct", 1))
-
+            # แยก itemId ต่อร้าน
             partner_items[partnershop]["items"][itemId] = item
-            partner_items[partnershop]["totalPrice"] += price * qty
 
         if item_count == 0:
             return jsonify({
@@ -481,11 +475,10 @@ def confirm_order():
             }), 400
 
         # ------------------------------------------------
-        # 4) create notification + send FCM
+        # 4) create notification (แยกร้าน)
         # ------------------------------------------------
         for partnershop, data in partner_items.items():
 
-            # 🔔 Firestore notification
             db.collection("OFM_name") \
               .document(nameOfm) \
               .collection("partner") \
@@ -499,37 +492,12 @@ def confirm_order():
                   "nameOfm": nameOfm,
                   "userName": userName,
                   "partnershop": partnershop,
-                  "status": "neworder",
-                  "totalPrice": data["totalPrice"],
-                  "items": data["items"],
+                  "items": data["items"],   # itemId แยกตามร้าน
                   "read": False,
                   "createdAt": firestore.SERVER_TIMESTAMP
               })
 
-            # 🔔 load FCM token
-            partner_doc = (
-                db.collection("OFM_name")
-                  .document(nameOfm)
-                  .collection("partner")
-                  .document(partnershop)
-                  .get()
-            )
-
-            fcm_token = None
-            if partner_doc.exists:
-                fcm_token = partner_doc.to_dict().get("fcmToken")
-
-            # 🔔 send FCM
-            send_fcm_to_partner(
-                fcm_token,
-                title="มีออเดอร์ใหม่",
-                body=f"ยอดรวม {data['totalPrice']:.0f} บาท",
-                data={
-                    "orderId": orderId,
-                    "partnershop": partnershop,
-                    "type": "new_order"
-                }
-            )
+            # (ถ้าต้องการส่ง FCM ต่อ สามารถคง logic เดิมไว้ได้)
 
         # ------------------------------------------------
         # 5) response
