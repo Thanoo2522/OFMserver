@@ -694,6 +694,8 @@ def save_product():
         priceproduct = data.get("priceproduct")
         preview_image_url = data.get("preview_image_url")
 
+        priceproduct = float(priceproduct)  # ถ้ามีทศนิยม
+
         if not all([
             name_ofm,
             slave_name,
@@ -725,6 +727,8 @@ def save_product():
         blob.make_public()
 
         image_url = f"https://storage.googleapis.com/{bucket.name}/{storage_path}"
+
+         
 
         # 2) Save product (logic เดิม)
         doc_ref = (
@@ -881,32 +885,19 @@ def search_adminmaster():
     return jsonify([{"OFM_name": d.to_dict().get("OFM_name")} for d in docs])
 
 # ------------------------------------
-from flask import request, jsonify
+ 
 import traceback
 
 @app.route("/get_market_page", methods=["GET"])
 def get_market_page():
-    print("========== /get_market_page ==========")
-
     try:
-        # ------------------------
-        # 0) รับ parameter
-        # ------------------------
         name_ofm = request.args.get("name_ofm")
-        print("▶ raw name_ofm:", name_ofm, type(name_ofm))
 
         if not name_ofm:
-            print("❌ name_ofm is missing")
             return jsonify({
                 "success": False,
                 "error": "name_ofm required"
             }), 400
-
-        # ------------------------
-        # 1) Firestore query
-        # ------------------------
-        print("▶ Query Firestore: collection_group('product')")
-        print("▶ where name_ofm ==", name_ofm)
 
         products = (
             db.collection_group("product")
@@ -914,26 +905,16 @@ def get_market_page():
               .stream()
         )
 
-        # ------------------------
-        # 2) Loop + group data
-        # ------------------------
         index = {}
         modes = set()
-        count = 0
 
         for p in products:
-            count += 1
             d = p.to_dict()
-
-            print(f"--- product #{count} ---")
-            print("doc id:", p.id)
-            print("data:", d)
 
             mode = d.get("mode")
             shop = d.get("partnershop")
 
             if not mode or not shop:
-                print("⚠️ skip: missing mode or partnershop")
                 continue
 
             modes.add(mode)
@@ -945,12 +926,6 @@ def get_market_page():
                 "image_url": d.get("image_url")
             })
 
-        print("▶ Total products:", count)
-        print("▶ Modes found:", list(modes))
-
-        # ------------------------
-        # 3) Build result
-        # ------------------------
         result = {
             "success": True,
             "modes": list(modes),
@@ -960,21 +935,13 @@ def get_market_page():
         for mode in result["modes"]:
             result["shops"][mode] = index.get(mode, {})
 
-        print("▶ Result JSON:", result)
-        print("========== END /get_market_page ==========")
-
         return jsonify(result)
 
     except Exception as e:
-        print("🔥 EXCEPTION OCCURRED")
-        print(str(e))
-        traceback.print_exc()
-
         return jsonify({
             "success": False,
             "error": str(e)
         }), 500
-
 
 # ------------------------------------
  
