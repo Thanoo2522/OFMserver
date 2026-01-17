@@ -128,18 +128,11 @@ def get_warehouse_images_by_mode(mode):
 #---
 @app.route("/lab/step2")
 def step2():
-    try:
-        docs = db.collection_group("product") \
-                 .where("productname", "==", "สามแม่ครัว") \
-                 .where("slave_name", "==", "seafood") \
-                 .stream()
-
-        return jsonify([d.id for d in docs])
-
-    except Exception as e:
-        return jsonify({
-            "firestore_error": str(e)
-        }), 500
+    docs = db.collection_group("mode") \
+             .where("productname", "==", "สามแม่ครัว") \
+                .where("slave_name", "==", "seafood") \
+             .stream()
+    return jsonify([d.id for d in docs])
 
 
 
