@@ -881,55 +881,99 @@ def search_adminmaster():
     return jsonify([{"OFM_name": d.to_dict().get("OFM_name")} for d in docs])
 
 # ------------------------------------
-@app.route("/get_market_page/<name_ofm>", methods=["GET"])
-def get_market_page(name_ofm):
-    result = {
-        "modes": [],
-        "shops": {}
-    }
+from flask import request, jsonify
+import traceback
 
-    # ------------------------
-    # 1) โหลดสินค้าทั้งหมด
-    # ------------------------
-    products = (
-        db.collection_group("product")
-          .where("name_ofm", "==", name_ofm)
-          .stream()
-    )
+@app.route("/get_market_page", methods=["GET"])
+def get_market_page():
+    print("========== /get_market_page ==========")
 
-    index = {}
-    modes = set()
+    try:
+        # ------------------------
+        # 0) รับ parameter
+        # ------------------------
+        name_ofm = request.args.get("name_ofm")
+        print("▶ raw name_ofm:", name_ofm, type(name_ofm))
 
-    # ------------------------
-    # 2) group mode -> shop -> product
-    # ------------------------
-    for p in products:
-        d = p.to_dict()
+        if not name_ofm:
+            print("❌ name_ofm is missing")
+            return jsonify({
+                "success": False,
+                "error": "name_ofm required"
+            }), 400
 
-        mode = d.get("mode")
-        shop = d.get("partnershop")
+        # ------------------------
+        # 1) Firestore query
+        # ------------------------
+        print("▶ Query Firestore: collection_group('product')")
+        print("▶ where name_ofm ==", name_ofm)
 
-        if not mode or not shop:
-            continue
+        products = (
+            db.collection_group("product")
+              .where("name_ofm", "==", name_ofm)
+              .stream()
+        )
 
-        modes.add(mode)
+        # ------------------------
+        # 2) Loop + group data
+        # ------------------------
+        index = {}
+        modes = set()
+        count = 0
 
-        index.setdefault(mode, {}).setdefault(shop, []).append({
-            "productname": d.get("productname"),
-            "dataproduct": d.get("dataproduct"),
-            "priceproduct": d.get("priceproduct"),
-            "image_url": d.get("image_url")
-        })
+        for p in products:
+            count += 1
+            d = p.to_dict()
 
-    # ------------------------
-    # 3) ใส่เฉพาะ mode ที่มีสินค้า
-    # ------------------------
-    result["modes"] = list(modes)
+            print(f"--- product #{count} ---")
+            print("doc id:", p.id)
+            print("data:", d)
 
-    for mode in result["modes"]:
-        result["shops"][mode] = index.get(mode, {})
+            mode = d.get("mode")
+            shop = d.get("partnershop")
 
-    return jsonify(result)
+            if not mode or not shop:
+                print("⚠️ skip: missing mode or partnershop")
+                continue
+
+            modes.add(mode)
+
+            index.setdefault(mode, {}).setdefault(shop, []).append({
+                "productname": d.get("productname"),
+                "dataproduct": d.get("dataproduct"),
+                "priceproduct": d.get("priceproduct"),
+                "image_url": d.get("image_url")
+            })
+
+        print("▶ Total products:", count)
+        print("▶ Modes found:", list(modes))
+
+        # ------------------------
+        # 3) Build result
+        # ------------------------
+        result = {
+            "success": True,
+            "modes": list(modes),
+            "shops": {}
+        }
+
+        for mode in result["modes"]:
+            result["shops"][mode] = index.get(mode, {})
+
+        print("▶ Result JSON:", result)
+        print("========== END /get_market_page ==========")
+
+        return jsonify(result)
+
+    except Exception as e:
+        print("🔥 EXCEPTION OCCURRED")
+        print(str(e))
+        traceback.print_exc()
+
+        return jsonify({
+            "success": False,
+            "error": str(e)
+        }), 500
 
 
 # ------------------------------------
