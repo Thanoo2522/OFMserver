@@ -739,11 +739,13 @@ def save_product():
         )
 
         doc_ref.set({
+            "name_ofm":name_ofm,
+            "mode":view_modename,
+            "partnershop":slave_name,
             "dataproduct":dataproduct,
             "productname":view_productname,
             "priceproduct":priceproduct,
             "image_url": image_url,
-            "slave_name": slave_name,
             "created_at": datetime.utcnow()
         })
 
@@ -903,7 +905,7 @@ def get_market_page(name_ofm):
     # ------------------------
     products = (
         db.collection_group("product")
-          .where("nameOfm", "==", name_ofm)
+          .where("name_ofm", "==", name_ofm)
           .stream()
     )
 
