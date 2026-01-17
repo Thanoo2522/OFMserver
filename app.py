@@ -889,19 +889,7 @@ def get_market_page(name_ofm):
     }
 
     # ------------------------
-    # 1) โหลด modes
-    # ------------------------
-    modes = [
-        d.id for d in
-        db.collection("OFM_name")
-          .document(name_ofm)
-          .collection("modproduct")
-          .stream()
-    ]
-    result["modes"] = modes
-
-    # ------------------------
-    # 2) โหลดสินค้าทั้งหมด (collection_group ที่ถูกต้อง)
+    # 1) โหลดสินค้าทั้งหมด
     # ------------------------
     products = (
         db.collection_group("product")
@@ -909,28 +897,36 @@ def get_market_page(name_ofm):
           .stream()
     )
 
-    # index: mode -> shop -> products
     index = {}
+    modes = set()
 
-    for p in product:
+    # ------------------------
+    # 2) group mode -> shop -> product
+    # ------------------------
+    for p in products:
         d = p.to_dict()
+
         mode = d.get("mode")
         shop = d.get("partnershop")
 
         if not mode or not shop:
             continue
 
+        modes.add(mode)
+
         index.setdefault(mode, {}).setdefault(shop, []).append({
-            "ProductName": d.get("ProductName"),
-            "ProductDetail": d.get("ProductDetail"),
-            "Price": d.get("Price"),
-            "imageurl": d.get("imageurl")
+            "productname": d.get("productname"),
+            "dataproduct": d.get("dataproduct"),
+            "priceproduct": d.get("priceproduct"),
+            "image_url": d.get("image_url")
         })
 
     # ------------------------
-    # 3) ใส่เฉพาะร้านที่มีสินค้า
+    # 3) ใส่เฉพาะ mode ที่มีสินค้า
     # ------------------------
-    for mode in modes:
+    result["modes"] = list(modes)
+
+    for mode in result["modes"]:
         result["shops"][mode] = index.get(mode, {})
 
     return jsonify(result)
