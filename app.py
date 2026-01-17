@@ -128,7 +128,7 @@ def get_warehouse_images_by_mode(mode):
 #---
 @app.route("/lab/step2")
 def step2():
-    docs = db.collection_group("OFM_name") \
+    docs = db.collection_group("product") \
              .where("productname", "==", "สามแม่ครัว") \
                 .where("slave_name", "==", "seafood") \
              .stream()
