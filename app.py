@@ -371,6 +371,8 @@ def add_item_preorder():
         "Partnershop": Partnershop,
         "numberproduct": 1,
         "status": "draft",
+        "ofmname": nameOfm,
+        "username": userName,
         "created_at": datetime.utcnow()
     })
 
@@ -900,6 +902,24 @@ def save_product():
         traceback.print_exc()
         return jsonify({"success": False, "message": str(e)}), 500
 
+#-------------------------------------
+@app.route("/load_orders", methods=["GET"])
+def load_orders():
+    ofmname = request.args.get("ofmname")
+    username = request.args.get("username")
+
+    docs = db.collection_group("items") \
+        .where("ofmname", "==", ofmname) \
+        .where("username", "==", username) \
+        .stream()
+
+    result = []
+    for d in docs:
+        data = d.to_dict()
+        data["itemID"] = d.id
+        result.append(data)
+
+    return jsonify(result)
 
 # ------------------------------------
 # Admin Login
