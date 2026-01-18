@@ -694,7 +694,7 @@ def save_product():
         priceproduct = data.get("priceproduct")
         preview_image_url = data.get("preview_image_url")
 
-        priceproduct = float(priceproduct)  # ถ้ามีทศนิยม
+      
 
         if not all([
             name_ofm,
