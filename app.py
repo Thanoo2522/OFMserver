@@ -386,36 +386,109 @@ def add_item_preorder():
         "itemId": itemId
     })
 #-----------------------API สำหรับเช็ค notification ใหม่
-@app.route("/check_partner_notification", methods=["GET"])
-def check_partner_notification():
+@app.route("/partner_notifications", methods=["POST"])
+def partner_notifications():
+    try:
+        data = request.json or {}
+
+        nameOfm = data.get("nameOfm")
+        partnershop = data.get("partnershop")
+        orderId = data.get("orderId")   # optional
+
+        if not nameOfm or not partnershop:
+            return jsonify({"success": False, "error": "missing parameters"})
+
+        orders_ref = (
+            db.collection("OFM_name")
+              .document(nameOfm)
+              .collection("partner")
+              .document(partnershop)
+              .collection("system")
+              .document("notification")
+              .collection("orders")
+        )
+
+        # ==================================================
+        # ✅ 1) MARK READ
+        # ==================================================
+        if orderId:
+            orders_ref.document(orderId).update({
+                "read": True,
+                "readAt": firestore.SERVER_TIMESTAMP
+            })
+            return jsonify({"success": True})
+
+        # ==================================================
+        # 📥 2) LOAD NOTIFICATIONS
+        # ==================================================
+        docs = (
+            orders_ref
+            .order_by("createdAt", direction=firestore.Query.DESCENDING)
+            .stream()
+        )
+
+        result = []
+        for d in docs:
+            n = d.to_dict()
+
+            result.append({
+                "id": d.id,                                # สำหรับ _seenNotificationIds
+                "orderId": n.get("orderId"),
+                "customerName": n.get("userName"),
+                "status": "read" if n.get("read") else "unread",
+                "createdAt": n.get("createdAt")
+            })
+
+        return jsonify(result)
+
+    except Exception as e:
+        traceback.print_exc()
+        return jsonify({"success": False})
+
+#---------------------------------
+@app.route("/get_notifications", methods=["GET"])
+def get_notifications():
     try:
         nameOfm = request.args.get("nameOfm")
         partnershop = request.args.get("partnershop")
 
-        if not all([nameOfm, partnershop]):
-            return jsonify({"hasNew": False})
+        if not nameOfm or not partnershop:
+            return jsonify([])
 
-        notify_ref = rtdb.reference(
-            f'OFM_name/{nameOfm}/partner/{partnershop}/system/notification'
+        orders_ref = (
+            db.collection("OFM_name")
+              .document(nameOfm)
+              .collection("partner")
+              .document(partnershop)
+              .collection("system")
+              .document("notification")
+              .collection("orders")
         )
 
-        data = notify_ref.get() or {}
+        docs = (
+            orders_ref
+            .order_by("createdAt", direction=firestore.Query.DESCENDING)
+            .limit(50)
+            .stream()
+        )
 
-        for orderId, n in data.items():
-            if n.get("read") is False:
-                return jsonify({
-                    "hasNew": True,
-                    "orderId": orderId,
-                    "totalPrice": n.get("totalPrice", 0)
-                })
+        result = []
+        for doc in docs:
+            n = doc.to_dict()
 
-        return jsonify({"hasNew": False})
+            result.append({
+                "id": doc.id,                           # ใช้กับ _seenNotificationIds
+                "orderId": n.get("orderId"),
+                "customerName": n.get("userName"),
+                "status": "read" if n.get("read") else "unread",
+                "createdAt": n.get("createdAt")
+            })
+
+        return jsonify(result)
 
     except Exception as e:
         traceback.print_exc()
-        return jsonify({"hasNew": False})
-
-
+        return jsonify({"error": str(e)}), 500
 #-----------------------------------
 @app.route("/confirm_order", methods=["POST"])
 def confirm_order():
@@ -427,7 +500,7 @@ def confirm_order():
         userName = request.args.get("userName")
         orderId  = request.args.get("orderId")
 
-        print("CONFIRM_ORDER:", nameOfm, userName, orderId)
+        #print("CONFIRM_ORDER:", nameOfm, userName, orderId)
 
         if not all([nameOfm, userName, orderId]):
             return jsonify({
@@ -525,7 +598,7 @@ def confirm_order():
                   "userName": userName,
                   "partnershop": partnershop,
                   "items": data["items"],   # ["itemID1", "itemID2"]
-                  "read": False,
+                  "read": "unread",
                   "createdAt": firestore.SERVER_TIMESTAMP
               })
 
