@@ -598,7 +598,7 @@ def confirm_order():
                   "userName": userName,
                   "partnershop": partnershop,
                   "items": data["items"],   # ["itemID1", "itemID2"]
-                  "read": "unread",
+                   "read": False, 
                   "createdAt": firestore.SERVER_TIMESTAMP
               })
 
@@ -616,7 +616,56 @@ def confirm_order():
             "success": False,
             "error": str(e)
         }), 500
+#---------------------------------
+@app.route("/mark_partner_notification_read", methods=["POST"])
+def mark_partner_notification_read():
+    try:
+        data = request.get_json()
 
+        nameOfm = data.get("nameOfm")
+        shopname = data.get("shopname")
+        orderId = data.get("orderId")
+
+        if not nameOfm or not shopname or not orderId:
+            return jsonify({
+                "success": False,
+                "error": "missing parameters"
+            }), 400
+
+        doc_ref = (
+            db.collection("OFM_name")
+              .document(nameOfm)
+              .collection("partner")
+              .document(shopname)
+              .collection("system")
+              .document("notification")
+              .collection("orders")
+              .document(orderId)
+        )
+
+        doc = doc_ref.get()
+        if not doc.exists:
+            return jsonify({
+                "success": False,
+                "error": "notification not found"
+            }), 404
+
+        # ✅ mark read
+        doc_ref.update({
+            "read": True,
+            "readAt": firestore.SERVER_TIMESTAMP
+        })
+
+        return jsonify({
+            "success": True,
+            "orderId": orderId
+        })
+
+    except Exception as e:
+        return jsonify({
+            "success": False,
+            "error": str(e)
+        }), 500
 #------------------------------------
 
 @app.route("/get_order_items", methods=["GET"])
