@@ -502,8 +502,6 @@ def confirm_order():
         userName = request.args.get("userName")
         orderId  = request.args.get("orderId")
 
-        #print("CONFIRM_ORDER:", nameOfm, userName, orderId)
-
         if not all([nameOfm, userName, orderId]):
             return jsonify({
                 "success": False,
@@ -538,7 +536,7 @@ def confirm_order():
         # ------------------------------------------------
         order_ref.update({
             "status": "orderconfirmed",
-            "Preorder": 0,   # ✅ ปิดสถานะ preorder
+            "Preorder": 0,
             "confirmedAt": firestore.SERVER_TIMESTAMP
         })
 
@@ -550,7 +548,7 @@ def confirm_order():
         })
 
         # ------------------------------------------------
-        # 4) load items + แยกตาม Partnershop
+        # 4) load items และแยกตาม partnershop
         # ------------------------------------------------
         items_ref = order_ref.collection("items")
         items_docs = items_ref.stream()
@@ -560,8 +558,9 @@ def confirm_order():
 
         for doc in items_docs:
             item_count += 1
-            itemId = doc.id
-            item = doc.to_dict()
+
+            itemId = doc.id            # ✅ itemID
+            item   = doc.to_dict()
 
             partnershop = item.get("Partnershop")
             if not partnershop:
@@ -572,7 +571,6 @@ def confirm_order():
                     "items": []
                 }
 
-            # เก็บเฉพาะ itemId
             partner_items[partnershop]["items"].append(itemId)
 
         if item_count == 0:
@@ -585,24 +583,25 @@ def confirm_order():
         # 5) create notification (แยกร้าน)
         # ------------------------------------------------
         for partnershop, data in partner_items.items():
-
-            db.collection("OFM_name") \
-              .document(nameOfm) \
-              .collection("partner") \
-              .document(partnershop) \
-              .collection("system") \
-              .document("notification") \
-              .collection("orders") \
-              .document(orderId) \
-              .set({
-                  "orderId": orderId,
-                  "nameOfm": nameOfm,
-                  "userName": userName,
-                  "partnershop": partnershop,
-                  "items": data["items"],   # ["itemID1", "itemID2"]
-                   "read": False, 
-                  "createdAt": firestore.SERVER_TIMESTAMP
-              })
+            (
+                db.collection("OFM_name")
+                  .document(nameOfm)
+                  .collection("partner")
+                  .document(partnershop)
+                  .collection("system")
+                  .document("notification")
+                  .collection("orders")
+                  .document(orderId)
+                  .set({
+                      "orderId": orderId,
+                      "nameOfm": nameOfm,
+                      "userName": userName,
+                      "partnershop": partnershop,
+                      "items": data["items"],   # ✅ ["itemID1", "itemID2"]
+                      "read": False,
+                      "createdAt": firestore.SERVER_TIMESTAMP
+                  })
+            )
 
         # ------------------------------------------------
         # 6) response
@@ -905,21 +904,49 @@ def save_product():
 #-------------------------------------
 @app.route("/load_orders", methods=["GET"])
 def load_orders():
-    ofmname = request.args.get("ofmname")
-    username = request.args.get("username")
+    try:
+        ofmname = request.args.get("ofmname")
+        username = request.args.get("username")
+        order_id = request.args.get("orderId")
 
-    docs = db.collection_group("items") \
-        .where("ofmname", "==", ofmname) \
-        .where("username", "==", username) \
-        .stream()
+        if not ofmname or not username or not order_id:
+            return jsonify([])
+ 
+        items_ref = (
+            db.collection("OFM_name")
+              .document(ofmname)
+              .collection("customers")
+              .document(username)
+              .collection("orders")
+              .document(order_id)
+              .collection("items")
+        )
 
-    result = []
-    for d in docs:
-        data = d.to_dict()
-        data["itemID"] = d.id
-        result.append(data)
+        docs = items_ref.stream()
 
-    return jsonify(result)
+        result = []
+        for d in docs:
+            data = d.to_dict() or {}
+
+            result.append({
+                "itemId": d.id,
+                "productname": data.get("productname", ""),
+                "numberproduct": data.get("numberproduct", 0),
+                "into_unit": data.get("into_unit", ""),
+                "priceproduct": float(data.get("priceproduct", 0)),
+                "image_url": data.get("image_url", ""),
+                "prepare": data.get("prepare", "Not prepared")
+            })
+
+        # (optional) เรียงตามชื่อสินค้า
+        result.sort(key=lambda x: x["productname"])
+
+        return jsonify(result)
+
+    except Exception as e:
+        return jsonify({
+            "error": str(e)
+        }), 500
 
 # ------------------------------------
 # Admin Login
