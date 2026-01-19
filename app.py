@@ -548,7 +548,7 @@ def confirm_order():
         })
 
         # ------------------------------------------------
-        # 4) load items และแยกตาม partnershop
+        # 4) load items + แยกตาม Partnershop
         # ------------------------------------------------
         items_ref = order_ref.collection("items")
         items_docs = items_ref.stream()
@@ -559,19 +559,23 @@ def confirm_order():
         for doc in items_docs:
             item_count += 1
 
-            itemId = doc.id            # ✅ itemID
+            itemId = doc.id
             item   = doc.to_dict()
 
             partnershop = item.get("Partnershop")
             if not partnershop:
                 continue
 
+            # ใส่ itemId เข้าไปในข้อมูล (สำคัญ)
+            item["itemId"] = itemId
+
             if partnershop not in partner_items:
                 partner_items[partnershop] = {
                     "items": []
                 }
 
-            partner_items[partnershop]["items"].append(itemId)
+            # ✅ เก็บ item detail ทั้งก้อน
+            partner_items[partnershop]["items"].append(item)
 
         if item_count == 0:
             return jsonify({
@@ -597,7 +601,7 @@ def confirm_order():
                       "nameOfm": nameOfm,
                       "userName": userName,
                       "partnershop": partnershop,
-                      "items": data["items"],   # ✅ ["itemID1", "itemID2"]
+                      "items": data["items"],   # ✅ item detail
                       "read": False,
                       "createdAt": firestore.SERVER_TIMESTAMP
                   })
@@ -617,6 +621,7 @@ def confirm_order():
             "success": False,
             "error": str(e)
         }), 500
+
 #---------------------------------
 @app.route("/mark_partner_notification_read", methods=["POST"])
 def mark_partner_notification_read():
