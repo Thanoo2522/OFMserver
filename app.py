@@ -449,89 +449,73 @@ def partner_notifications():
 #----------------------------------
 @app.route("/get_partner_orders", methods=["GET"])
 def get_partner_orders():
-    try:
-        ofmname = request.args.get("ofmname") or request.args.get("name_ofm")
-        partnershop = request.args.get("partnershop")
+    ofmname = request.args.get("ofmname")
+    partnershop = request.args.get("partnershop")
 
-        if not ofmname or not partnershop:
-            return jsonify({"error": "missing parameters"}), 400
+    noti_docs = (
+        db.collection("OFM_name")
+          .document(ofmname)
+          .collection("partner")
+          .document(partnershop)
+          .collection("system")
+          .document("notification")
+          .collection("orders")
+          .where("status", "==", "draft")
+          .order_by("createdAt", direction=firestore.Query.DESCENDING)
+          .limit(20)
+          .stream()
+    )
 
-        noti_docs = (
+    results = []
+
+    for n in noti_docs:
+        noti = n.to_dict()
+        orderId = noti.get("orderId")
+        username = noti.get("userName")
+
+        # ---------- customer ----------
+        customer_doc = (
             db.collection("OFM_name")
               .document(ofmname)
-              .collection("partner")
-              .document(partnershop)
-              .collection("system")
-              .document("notification")
-              .collection("orders")
-              .where("ofmname", "==", ofmname)
-              .where("partnershop", "==", partnershop)
-              .where("status", "==", "draft")
-              .order_by("created_at", direction=firestore.Query.DESCENDING)
-              .limit(20)
-              .stream()
+              .collection("customers")
+              .document(username)
+              .get()
         )
 
-        results = []
+        customer = customer_doc.to_dict() if customer_doc.exists else {}
 
-        for n in noti_docs:
-            noti = n.to_dict()
-            orderId = n.id
-            username = noti.get("username")
-            if not username:
+        # ---------- items (filter ร้าน) ----------
+        items = []
+        total_price = 0
+        i = 1
+
+        for item in noti.get("items", []):
+            if item.get("Partnershop") != partnershop:
                 continue
 
-            customer_doc = (
-                db.collection("OFM_name")
-                  .document(ofmname)
-                  .collection("customers")
-                  .document(username)
-                  .get()
-            )
+            item["serial_order"] = i
+            item["TotalPrice"] = item["priceproduct"] * item["numberproduct"]
+            total_price += item["TotalPrice"]
+            items.append(item)
+            i += 1
 
-            customer = customer_doc.to_dict() if customer_doc.exists else {}
+        if not items:
+            continue
 
-            items_docs = (
-                db.collection("OFM_name")
-                  .document(ofmname)
-                  .collection("customers")
-                  .document(username)
-                  .collection("orders")
-                  .document(orderId)
-                  .collection("items")
-                  .where("partnershop", "==", partnershop)
-                  .stream()
-            )
+        results.append({
+            "orderId": orderId,
+            "createdAt": noti.get("createdAt"),
+            "customer": {
+                "username": username,
+                "phone": customer.get("phone"),
+                "address": customer.get("address")
+            },
+            "items": items,
+            "total_price": total_price
+        })
 
-            items = []
-            total_price = 0
-            i = 1
+    return jsonify(results)
 
-            for d in items_docs:
-                item = d.to_dict()
-                item["itemId"] = d.id
-                item["serial_order"] = i
-                item["TotalPrice"] = item["priceproduct"] * item["numberproduct"]
-                total_price += item["TotalPrice"]
-                items.append(item)
-                i += 1
-
-            results.append({
-                "orderId": orderId,
-                "created_at": noti.get("created_at"),
-                "customer": {
-                    "username": username,
-                    "phone": customer.get("phone"),
-                    "address": customer.get("address")
-                },
-                "items": items,
-                "total_price": total_price
-            })
-
-        return jsonify(results)
-
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
 
 #--------------------------------
 @app.route("/final_order", methods=["POST"])
