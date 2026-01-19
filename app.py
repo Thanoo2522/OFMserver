@@ -446,6 +446,116 @@ def partner_notifications():
     except Exception as e:
         traceback.print_exc()
         return jsonify({"success": False})
+#----------------------------------
+@app.route("/get_partner_orders", methods=["GET"])
+def get_partner_orders():
+    ofmname = request.args.get("ofmname")
+    partnershop = request.args.get("partnershop")
+
+    # -------------------------------
+    # 1) ดึง notification (ใช้ index)
+    # -------------------------------
+    noti_docs = (
+        db.collection("OFM_name")
+          .document(ofmname)
+          .collection("partner")
+          .document(partnershop)
+          .collection("system")
+          .document("notification")
+          .collection("orders")
+          .where("ofmname", "==", ofmname)
+          .where("Partnershop", "==", partnershop)
+          .where("status", "==", "draft")
+          .order_by("created_at", direction=firestore.Query.DESCENDING)
+          .limit(20)   # 🔥 ป้องกัน overload
+          .stream()
+    )
+
+    results = []
+
+    for n in noti_docs:
+        noti = n.to_dict()
+        orderId = n.id
+        username = noti["username"]
+
+        # -------------------------------
+        # 2) customer (doc get → เร็ว)
+        # -------------------------------
+        customer_doc = (
+            db.collection("OFM_name")
+              .document(ofmname)
+              .collection("customers")
+              .document(username)
+              .get()
+        )
+
+        customer = customer_doc.to_dict() if customer_doc.exists else {}
+
+        # -------------------------------
+        # 3) items (filter ร้านเดียว)
+        # -------------------------------
+        items_docs = (
+            db.collection("OFM_name")
+              .document(ofmname)
+              .collection("customers")
+              .document(username)
+              .collection("orders")
+              .document(orderId)
+              .collection("items")
+              .where("Partnershop", "==", partnershop)
+              .stream()
+        )
+
+        items = []
+        total_price = 0
+        i = 1
+
+        for d in items_docs:
+            item = d.to_dict()
+            item["itemId"] = d.id
+            item["serial_order"] = i
+            item["TotalPrice"] = item["priceproduct"] * item["numberproduct"]
+            total_price += item["TotalPrice"]
+            items.append(item)
+            i += 1
+
+        results.append({
+            "orderId": orderId,
+            "created_at": noti["created_at"],
+            "customer": {
+                "username": username,
+                "phone": customer.get("phone"),
+                "address": customer.get("address")
+            },
+            "items": items,
+            "total_price": total_price
+        })
+
+    return jsonify(results)
+#--------------------------------
+@app.route("/final_order", methods=["POST"])
+def final_order():
+    ofmname = request.args.get("ofmname")
+    partnershop = request.args.get("partnershop")
+    orderId = request.args.get("orderId")
+
+    ref = (
+        db.collection("OFM_name")
+          .document(ofmname)
+          .collection("partner")
+          .document(partnershop)
+          .collection("system")
+          .document("notification")
+          .collection("orders")
+          .document(orderId)
+    )
+
+    ref.update({
+        "status": "read"
+    })
+
+    return jsonify({"success": True})
+
 
 #---------------------------------
 @app.route("/get_notifications", methods=["GET"])
