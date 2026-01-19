@@ -449,59 +449,82 @@ def partner_notifications():
 #----------------------------------
 @app.route("/get_partner_orders", methods=["GET"])
 def get_partner_orders():
-    ofmname = request.args.get("ofmname")
-    partnershop = request.args.get("partnershop")
+    try:
+        ofmname = request.args.get("ofmname")
+        partnershop = request.args.get("partnershop")
 
-    docs = (
-           db.collection("orders")
-      .where("nameOfm", "==", ofmname)
-      .limit(50)
-      .stream()
-         
-    )
+        if not ofmname or not partnershop:
+            return jsonify({"error": "missing params"}), 400
 
-    results = []
-
-    for d in docs:
-        o = d.to_dict()
-
-        username = o.get("userName")
-
-        # customer
-        customer_doc = (
-            db.collection("OFM_name")
-              .document(ofmname)
-              .collection("customers")
-              .document(username)
-              .get()
+        docs = (
+            db.collection("orders")
+              .where("nameOfm", "==", ofmname)
+              .limit(50)
+              .stream()
         )
-        customer = customer_doc.to_dict() if customer_doc.exists else {}
 
-        # items
-        items = []
-        total_price = 0
-        i = 1
+        results = []
 
-        for item in o.get("items", []):
-            item["serial_order"] = i
-            item["TotalPrice"] = item["priceproduct"] * item["numberproduct"]
-            total_price += item["TotalPrice"]
-            items.append(item)
-            i += 1
+        for d in docs:
+            o = d.to_dict() or {}
 
-        results.append({
-            "orderId": o.get("orderId"),
-            "createdAt": o.get("createdAt"),
-            "customer": {
-                "username": username,
-                "phone": customer.get("phone"),
-                "address": customer.get("address")
-            },
-            "items": items,
-            "total_price": total_price
-        })
+            username = o.get("userName")
+            if not username:
+                continue   # 🔥 ข้าม doc ที่พัง
 
-    return jsonify(results)
+            # ---------- customer ----------
+            customer_doc = (
+                db.collection("OFM_name")
+                  .document(ofmname)
+                  .collection("customers")
+                  .document(username)
+                  .get()
+            )
+            customer = customer_doc.to_dict() if customer_doc.exists else {}
+
+            # ---------- items ----------
+            raw_items = o.get("items")
+            if not isinstance(raw_items, list):
+                continue   # 🔥 items ไม่ใช่ array → ข้าม
+
+            items = []
+            total_price = 0
+            i = 1
+
+            for item in raw_items:
+                if item.get("Partnershop") != partnershop:
+                    continue
+
+                price = item.get("priceproduct", 0)
+                qty = item.get("numberproduct", 0)
+
+                item["serial_order"] = i
+                item["TotalPrice"] = price * qty
+                total_price += item["TotalPrice"]
+                items.append(item)
+                i += 1
+
+            if not items:
+                continue
+
+            results.append({
+                "orderId": o.get("orderId"),
+                "createdAt": o.get("createdAt"),
+                "customer": {
+                    "username": username,
+                    "phone": customer.get("phone"),
+                    "address": customer.get("address")
+                },
+                "items": items,
+                "total_price": total_price
+            })
+
+        return jsonify(results)
+
+    except Exception as e:
+        print("ERROR get_partner_orders:", e)
+        return jsonify({"error": str(e)}), 500
+
 
 
 
