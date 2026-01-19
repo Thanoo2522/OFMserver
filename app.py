@@ -453,12 +453,11 @@ def get_partner_orders():
     partnershop = request.args.get("partnershop")
 
     docs = (
-        db.collection("orders")
-          .where("nameOfm", "==", ofmname)
-          .where("partnershop", "==", partnershop)
-          .order_by("createdAt", direction=firestore.Query.DESCENDING)
-          .limit(20)
-          .stream()
+           db.collection("orders")
+      .where("nameOfm", "==", ofmname)
+      .limit(50)
+      .stream()
+         
     )
 
     results = []
