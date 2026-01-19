@@ -460,16 +460,43 @@ def get_partner_orders():
             db.collection_group("orders")
               .where("nameOfm", "==", ofmname)
               .where("partnershop", "==", partnershop)
-              .order_by("createdAt")   # ASC ตามที่คุณต้องการ
+              .order_by("createdAt")
               .limit(50)
               .stream()
         )
 
         results = []
+        customer_cache = {}   # ✅ cache customer ตาม userName
 
         for d in docs:
             o = d.to_dict() or {}
+            user_name = o.get("userName", "")
 
+            # -----------------------------
+            # 🔹 ดึง customer (ครั้งเดียวต่อ user)
+            # -----------------------------
+            if user_name:
+                if user_name not in customer_cache:
+                    customer_ref = (
+                        db.collection("OFM_name")
+                          .document(ofmname)
+                          .collection("customers")
+                          .document(user_name)
+                    )
+
+                    customer_doc = customer_ref.get()
+                    if customer_doc.exists:
+                        customer_cache[user_name] = customer_doc.to_dict()
+                    else:
+                        customer_cache[user_name] = {}
+
+                customer_data = customer_cache[user_name]
+            else:
+                customer_data = {}
+
+            # -----------------------------
+            # 🔹 items
+            # -----------------------------
             raw_items = o.get("items", [])
             if not isinstance(raw_items, list):
                 continue
@@ -489,10 +516,21 @@ def get_partner_orders():
                 items.append(item)
                 i += 1
 
+            # -----------------------------
+            # 🔹 response
+            # -----------------------------
             results.append({
                 "orderId": d.id,
                 "createdAt": o.get("createdAt"),
-                "userName": o.get("userName"),
+                "userName": user_name,
+
+                # ✅ customer info จาก path
+                "customer": {
+                    "username": customer_data.get("username", user_name),
+                    "phone": customer_data.get("phone", ""),
+                    "address": customer_data.get("address", "")
+                },
+
                 "items": items,
                 "total_price": total_price
             })
@@ -502,6 +540,7 @@ def get_partner_orders():
     except Exception as e:
         print("ERROR get_partner_orders:", e)
         return jsonify({"error": str(e)}), 500
+
 
 
 
