@@ -1,5 +1,5 @@
 from itertools import product
-from flask import Flask, request, jsonify,Response
+from flask import Flask, request, jsonify,Response , stream_with_context
 import os, json, io, traceback
 import requests
 from io import BytesIO
@@ -715,37 +715,70 @@ def get_notifications():
 
     return jsonify(result)
 
+#-----------------------------
 @app.route("/notifications/stream")
-def notification_stream():
+def notifications_stream():
     nameOfm = request.args.get("nameOfm")
     partnershop = request.args.get("partnershop")
 
+    if not nameOfm or not partnershop:
+        return "missing params", 400
+
     def event_stream():
-        query = (
-            db.collection("OFM_name")
-            .document(nameOfm)
-            .collection("partner")
-            .document(partnershop)
-            .collection("system")
-            .document("notification")
-            .collection("orders")
-            .where("read", "==", False)
-        )
+        last_ids = set()
 
-        for snap in query.on_snapshot(lambda col, chg, ts: None):
-            data = []
-            for doc in snap:
-                d = doc.to_dict()
-                data.append({
-                    "id": doc.id,
-                    "orderId": d.get("orderId"),
-                    "read": False,
-                    "customerName":d.get("userName")
-                })
+        try:
+            while True:
+                docs = (
+                    db.collection("OFM_name")
+                    .document(nameOfm)
+                    .collection("partner")
+                    .document(partnershop)
+                    .collection("system")
+                    .document("notification")
+                    .collection("orders")
+                    .where("read", "==", False)
+                    .stream()
+                )
 
-            yield f"data: {json.dumps(data)}\n\n"
+                result = []
+                current_ids = set()
 
-    return Response(event_stream(), mimetype="text/event-stream")
+                for d in docs:
+                    data = d.to_dict()
+                    current_ids.add(d.id)
+
+                    result.append({
+                        "id": d.id,
+                        "orderId": data.get("orderId"),
+                        "userName": data.get("userName"),
+                        "read": False,
+                        "createdAt": data.get("createdAt")
+                    })
+
+                # 🔔 ส่งเฉพาะเมื่อมีการเปลี่ยน
+                if current_ids != last_ids:
+                    payload = json.dumps(result, ensure_ascii=False)
+                    yield f"data: {payload}\n\n"
+                    last_ids = current_ids
+
+                # ❤️ keep alive (กัน render ตัด)
+                yield ":\n\n"
+                time.sleep(3)
+
+        except GeneratorExit:
+            print("🔌 client disconnected")
+        except Exception as e:
+            print("❌ SSE ERROR:", e)
+
+    return Response(
+        stream_with_context(event_stream()),
+        mimetype="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "X-Accel-Buffering": "no"
+        }
+    )
  #---------------------------------
 
 @app.route("/confirm_order", methods=["POST"])
