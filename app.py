@@ -739,7 +739,8 @@ def notification_stream():
                 data.append({
                     "id": doc.id,
                     "orderId": d.get("orderId"),
-                    "read": False
+                    "read": False,
+                    "customerName":d.get("userName")
                 })
 
             yield f"data: {json.dumps(data)}\n\n"
