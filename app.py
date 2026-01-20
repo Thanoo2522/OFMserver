@@ -515,6 +515,48 @@ def confirmfinal_order():
 
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+#-----------------------------------
+@app.route("/update_item_status", methods=["POST"])
+def update_item_status():
+    try:
+        ofmname = request.args.get("ofmname")
+        username = request.args.get("username")
+        order_id = request.args.get("orderId")
+        item_id = request.args.get("itemId")
+
+        if not all([ofmname, username, order_id, item_id]):
+            return jsonify({
+                "success": False,
+                "error": "missing params"
+            }), 400
+
+        item_ref = (
+            db.collection("OFM_name")
+              .document(ofmname)
+              .collection("customers")
+              .document(username)
+              .collection("orders")
+              .document(order_id)
+              .collection("items")
+              .document(str(item_id))
+        )
+
+        item_ref.update({
+            "status": "read"
+        })
+
+        return jsonify({
+            "success": True,
+            "orderId": order_id,
+            "itemId": item_id,
+            "status": "read"
+        })
+
+    except Exception as e:
+        return jsonify({
+            "success": False,
+            "error": str(e)
+        }), 500
    
 #----------------------------------
 @app.route("/get_partner_orders", methods=["GET"])
