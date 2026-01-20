@@ -700,91 +700,35 @@ def get_notifications():
         .collection("system")
         .document("notification")
         .collection("orders")
-        .where("read", "==", False)   # 🔥 filter ที่ Firestore
+        .where("read", "==", False)                    # 🔥 unread only
+        .order_by("createdAt", direction=firestore.Query.DESCENDING)
+        .limit(20)                                     # 🔥 FIX LIMIT
         .stream()
     )
 
     result = []
     for d in docs:
         data = d.to_dict()
+
+        created_at = data.get("createdAt")
+        created_at = (
+            created_at.isoformat()
+            if isinstance(created_at, datetime)
+            else None
+        )
+
         result.append({
-              "id": d.id,
-    "orderId": data.get("orderId"),
-    "customerName": data.get("userName"),
-    "createdAt": data.get("createdAt").isoformat() if data.get("createdAt") else None,
-    "read": False
+            "id": d.id,
+            "orderId": str(data.get("orderId", "")),
+            "customerName": data.get("userName") or "",
+            "createdAt": created_at,
+            "read": False
         })
 
     return jsonify(result)
 
 #-----------------------------
-@app.route("/notifications/stream", methods=["GET"])
-def notifications_stream():
-    nameOfm = request.args.get("nameOfm")
-    partnershop = request.args.get("partnershop")
-
-    def event_stream():
-        last_ids = set()
-
-        while True:
-            try:
-                docs = (
-                    db.collection("OFM_name")
-                    .document(nameOfm)
-                    .collection("partner")
-                    .document(partnershop)
-                    .collection("system")
-                    .document("notification")
-                    .collection("orders")
-                    .where("read", "==", False)   # 🔥 unread เท่านั้น
-                    .stream()
-                )
-
-                result = []
-                current_ids = set()
-
-                for d in docs:
-                    data = d.to_dict()
-                    current_ids.add(d.id)
-
-                    # 🔥 แปลง timestamp → string (กัน SSE crash)
-                    created_at = data.get("createdAt")
-                    if created_at:
-                        created_at = created_at.isoformat()
-
-                    result.append({
-                        "id": d.id,
-                        "orderId": data.get("orderId"),
-                        "customerName": data.get("userName"),
-                        "read": False,
-                        "createdAt": created_at
-                    })
-
-                # 🔔 ส่งเฉพาะตอนมีการเปลี่ยนแปลงจริง
-                if current_ids != last_ids:
-                    payload = json.dumps(result, ensure_ascii=False)
-                    yield f"data: {payload}\n\n"
-                    last_ids = current_ids
-
-                time.sleep(3)  # ⏱ realtime interval (ปรับได้)
-
-            except GeneratorExit:
-                # client ปิด connection
-                break
-
-            except Exception as e:
-                print("❌ SSE ERROR:", e)
-                time.sleep(5)
-
-    return Response(
-        event_stream(),
-        mimetype="text/event-stream",
-        headers={
-            "Cache-Control": "no-cache",
-            "Connection": "keep-alive",
-            "X-Accel-Buffering": "no"  # 🔥 สำคัญมากบน Render / Nginx
-        }
-    )
+ 
  #---------------------------------
 
 @app.route("/confirm_order", methods=["POST"])
