@@ -446,6 +446,76 @@ def partner_notifications():
     except Exception as e:
         traceback.print_exc()
         return jsonify({"success": False})
+
+ #----------------------------------
+@app.route("/update_partner_notification_read", methods=["POST"])
+def update_partner_notification_read():
+    try:
+        ofmname = request.args.get("ofmname")
+        partnershop = request.args.get("partnershop")
+        order_id = request.args.get("orderId")
+
+        if not ofmname or not partnershop or not order_id:
+            return jsonify({"error": "missing params"}), 400
+
+        doc_ref = (
+            db.collection("OFM_name")
+              .document(ofmname)
+              .collection("partner")
+              .document(partnershop)
+              .collection("system")
+              .document("notification")
+              .collection("orders")
+              .document(order_id)
+        )
+
+        doc_ref.update({
+            "read": True
+        })
+
+        return jsonify({
+            "success": True,
+            "orderId": order_id,
+            "read": True
+        })
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+ #----------------------------------    
+@app.route("/final_order", methods=["POST"])
+def final_order():
+    try:
+        ofmname = request.args.get("ofmname")
+        partnershop = request.args.get("partnershop")
+        order_id = request.args.get("orderId")
+
+        if not ofmname or not partnershop or not order_id:
+            return jsonify({"error": "missing params"}), 400
+
+        order_ref = (
+            db.collection("OFM_name")
+              .document(ofmname)
+              .collection("partner")
+              .document(partnershop)
+              .collection("orders")
+              .document(order_id)
+        )
+
+        order_ref.update({
+            "status": "prepared",
+            "preparedAt": firestore.SERVER_TIMESTAMP
+        })
+
+        return jsonify({
+            "success": True,
+            "orderId": order_id,
+            "status": "prepared"
+        })
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+   
 #----------------------------------
 @app.route("/get_partner_orders", methods=["GET"])
 def get_partner_orders():
