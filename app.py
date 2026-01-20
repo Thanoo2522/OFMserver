@@ -684,50 +684,35 @@ def final_order():
 
 
 #---------------------------------
-@app.route("/get_notifications", methods=["GET"])
+@app.route("/get_notifications")
 def get_notifications():
-    try:
-        nameOfm = request.args.get("nameOfm")
-        partnershop = request.args.get("partnershop")
+    nameOfm = request.args.get("nameOfm")
+    partnershop = request.args.get("partnershop")
 
-        if not nameOfm or not partnershop:
-            return jsonify([])
+    docs = (
+        db.collection("OFM_name")
+        .document(nameOfm)
+        .collection("partner")
+        .document(partnershop)
+        .collection("system")
+        .document("notification")
+        .collection("orders")
+        .stream()
+    )
 
-        orders_ref = (
-            db.collection("OFM_name")
-              .document(nameOfm)
-              .collection("partner")
-              .document(partnershop)
-              .collection("system")
-              .document("notification")
-              .collection("orders")
-        )
+    result = []
+    for d in docs:
+        data = d.to_dict()
+        result.append({
+            "id": d.id,
+            "orderId": data.get("orderId"),
+            "customerName": data.get("userName"),
+            "read": bool(data.get("read", False)),  # 🔥 บังคับ boolean
+            "createdAt": data.get("createdAt")
+        })
 
-        docs = (
-            orders_ref
-            .order_by("createdAt", direction=firestore.Query.DESCENDING)
-            .limit(50)
-            .stream()
-        )
+    return jsonify(result)
 
-        result = []
-        for doc in docs:
-            n = doc.to_dict()
-
-            result.append({
-                "id": doc.id,                           # ใช้กับ _seenNotificationIds
-                "orderId": n.get("orderId"),
-                "customerName": n.get("userName"),
-                "status": "read" if n.get("read") else "unread",
-                "createdAt": n.get("createdAt")
-            })
-
-        return jsonify(result)
-
-    except Exception as e:
-        traceback.print_exc()
-        return jsonify({"error": str(e)}), 500
-#-----------------------------------
 @app.route("/confirm_order", methods=["POST"])
 def confirm_order():
     try:
