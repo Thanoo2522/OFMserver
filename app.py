@@ -484,7 +484,7 @@ def update_partner_notification_read():
 
  #----------------------------------    
 @app.route("/confirmfinal_order", methods=["POST"])
-def final_order():
+def confirmfinal_order():
     try:
         ofmname = request.args.get("ofmname")
         partnershop = request.args.get("partnershop")
