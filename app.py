@@ -1,5 +1,5 @@
 from itertools import product
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify,Response
 import os, json, io, traceback
 import requests
 from io import BytesIO
@@ -684,10 +684,13 @@ def final_order():
 
 
 #---------------------------------
-@app.route("/get_notifications")
+@app.route("/get_notifications", methods=["GET"])
 def get_notifications():
     nameOfm = request.args.get("nameOfm")
     partnershop = request.args.get("partnershop")
+
+    if not nameOfm or not partnershop:
+        return jsonify({"error": "missing params"}), 400
 
     docs = (
         db.collection("OFM_name")
@@ -697,6 +700,7 @@ def get_notifications():
         .collection("system")
         .document("notification")
         .collection("orders")
+        .where("read", "==", False)   # 🔥 filter ที่ Firestore
         .stream()
     )
 
@@ -706,12 +710,42 @@ def get_notifications():
         result.append({
             "id": d.id,
             "orderId": data.get("orderId"),
-            "customerName": data.get("userName"),
-            "read": bool(data.get("read", False)),  # 🔥 บังคับ boolean
-            "createdAt": data.get("createdAt")
+            "read": False  # 🔥 การันตี false
         })
 
     return jsonify(result)
+
+@app.route("/notifications/stream")
+def notification_stream():
+    nameOfm = request.args.get("nameOfm")
+    partnershop = request.args.get("partnershop")
+
+    def event_stream():
+        query = (
+            db.collection("OFM_name")
+            .document(nameOfm)
+            .collection("partner")
+            .document(partnershop)
+            .collection("system")
+            .document("notification")
+            .collection("orders")
+            .where("read", "==", False)
+        )
+
+        for snap in query.on_snapshot(lambda col, chg, ts: None):
+            data = []
+            for doc in snap:
+                d = doc.to_dict()
+                data.append({
+                    "id": doc.id,
+                    "orderId": d.get("orderId"),
+                    "read": False
+                })
+
+            yield f"data: {json.dumps(data)}\n\n"
+
+    return Response(event_stream(), mimetype="text/event-stream")
+ #---------------------------------
 
 @app.route("/confirm_order", methods=["POST"])
 def confirm_order():
