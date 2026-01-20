@@ -483,7 +483,7 @@ def update_partner_notification_read():
         return jsonify({"error": str(e)}), 500
 
  #----------------------------------    
-@app.route("/final_order", methods=["POST"])
+@app.route("/confirmfinal_order", methods=["POST"])
 def final_order():
     try:
         ofmname = request.args.get("ofmname")
