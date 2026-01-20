@@ -716,19 +716,16 @@ def get_notifications():
     return jsonify(result)
 
 #-----------------------------
-@app.route("/notifications/stream")
+@app.route("/notifications/stream", methods=["GET"])
 def notifications_stream():
     nameOfm = request.args.get("nameOfm")
     partnershop = request.args.get("partnershop")
 
-    if not nameOfm or not partnershop:
-        return "missing params", 400
-
     def event_stream():
         last_ids = set()
 
-        try:
-            while True:
+        while True:
+            try:
                 docs = (
                     db.collection("OFM_name")
                     .document(nameOfm)
@@ -737,7 +734,7 @@ def notifications_stream():
                     .collection("system")
                     .document("notification")
                     .collection("orders")
-                    .where("read", "==", False)
+                    .where("read", "==", False)   # 🔥 unread เท่านั้น
                     .stream()
                 )
 
@@ -748,35 +745,42 @@ def notifications_stream():
                     data = d.to_dict()
                     current_ids.add(d.id)
 
+                    # 🔥 แปลง timestamp → string (กัน SSE crash)
+                    created_at = data.get("createdAt")
+                    if created_at:
+                        created_at = created_at.isoformat()
+
                     result.append({
                         "id": d.id,
                         "orderId": data.get("orderId"),
-                        "userName": data.get("userName"),
+                        "customerName": data.get("userName"),
                         "read": False,
-                        "createdAt": data.get("createdAt")
+                        "createdAt": created_at
                     })
 
-                # 🔔 ส่งเฉพาะเมื่อมีการเปลี่ยน
+                # 🔔 ส่งเฉพาะตอนมีการเปลี่ยนแปลงจริง
                 if current_ids != last_ids:
                     payload = json.dumps(result, ensure_ascii=False)
                     yield f"data: {payload}\n\n"
                     last_ids = current_ids
 
-                # ❤️ keep alive (กัน render ตัด)
-                yield ":\n\n"
-                time.sleep(3)
+                time.sleep(3)  # ⏱ realtime interval (ปรับได้)
 
-        except GeneratorExit:
-            print("🔌 client disconnected")
-        except Exception as e:
-            print("❌ SSE ERROR:", e)
+            except GeneratorExit:
+                # client ปิด connection
+                break
+
+            except Exception as e:
+                print("❌ SSE ERROR:", e)
+                time.sleep(5)
 
     return Response(
-        stream_with_context(event_stream()),
+        event_stream(),
         mimetype="text/event-stream",
         headers={
             "Cache-Control": "no-cache",
-            "X-Accel-Buffering": "no"
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no"  # 🔥 สำคัญมากบน Render / Nginx
         }
     )
  #---------------------------------
