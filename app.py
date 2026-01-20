@@ -708,9 +708,11 @@ def get_notifications():
     for d in docs:
         data = d.to_dict()
         result.append({
-            "id": d.id,
-            "orderId": data.get("orderId"),
-            "read": False  # 🔥 การันตี false
+              "id": d.id,
+    "orderId": data.get("orderId"),
+    "customerName": data.get("userName"),
+    "createdAt": data.get("createdAt").isoformat() if data.get("createdAt") else None,
+    "read": False
         })
 
     return jsonify(result)
