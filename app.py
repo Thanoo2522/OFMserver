@@ -470,12 +470,11 @@ def update_item_status():
               .collection("orders")
               .document(order_id)
               .collection("items")
-              .document(str(item_id))
+              .document(item_id)
         )
 
         item_ref.update({
-            "status": "confirmed",
-            "read": True
+            "status": "confirmed" 
         })
 
         return jsonify({
