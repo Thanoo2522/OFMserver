@@ -448,23 +448,17 @@ def partner_notifications():
         return jsonify({"success": False})
 
  #----------------------------------
-
-
- #----------------------------------    
-
-    
 @app.route("/update_partner_notification_read", methods=["POST"])
 def update_partner_notification_read():
     try:
         ofmname = request.args.get("ofmname")
         partnershop = request.args.get("partnershop")
         order_id = request.args.get("orderId")
-        item_id = request.args.get("itemId")  # itemID ข้างใน
 
-        if not all([ofmname, partnershop, order_id, item_id]):
+        if not ofmname or not partnershop or not order_id:
             return jsonify({"error": "missing params"}), 400
 
-        order_ref = (
+        doc_ref = (
             db.collection("OFM_name")
               .document(ofmname)
               .collection("partner")
@@ -475,40 +469,27 @@ def update_partner_notification_read():
               .document(order_id)
         )
 
-        items_col = order_ref.collection("items")
-
-        # 🔍 หา document ที่มี field itemID ตรงกัน
-        docs = items_col.where("itemID", "==", item_id).stream()
-
-        batch = db.batch()
-        found = False
-
-        for doc in docs:
-            found = True
-            # update item
-            batch.update(doc.reference, {
-                "status": "confirmed"
-            })
-
-            # update order (ถ้าต้องการ)
-            batch.update(order_ref, {
-                "read": True
-            })
-
-        if not found:
-            return jsonify({"error": "item not found"}), 404
-
-        batch.commit()
+        doc_ref.update({
+            "read": True
+        })
 
         return jsonify({
             "success": True,
             "orderId": order_id,
-            "itemId": item_id,
-            "status": "confirmed"
+            "read": True
         })
 
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+
+
+
+
+
+ #----------------------------------    
+
+    
+ 
 
    
 #----------------------------------
