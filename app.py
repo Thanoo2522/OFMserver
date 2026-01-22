@@ -454,15 +454,11 @@ def update_partner_notification_read():
         ofmname = request.args.get("ofmname")
         partnershop = request.args.get("partnershop")
         order_id = request.args.get("orderId")
-        item_id = request.args.get("itemId")  # optional
 
-        if not all([ofmname, partnershop, order_id]):
+        if not ofmname or not partnershop or not order_id:
             return jsonify({"error": "missing params"}), 400
 
-        batch = db.batch()
-
-        # 🔹 order level
-        order_ref = (
+        doc_ref = (
             db.collection("OFM_name")
               .document(ofmname)
               .collection("partner")
@@ -473,28 +469,19 @@ def update_partner_notification_read():
               .document(order_id)
         )
 
-        batch.update(order_ref, {"read": True})
-
-        # 🔹 item level (ถ้ามี itemId)
-        if item_id is not None:
-            item_ref = (
-                order_ref
-                .collection("items")
-                .document(str(item_id))
-            )
-            batch.update(item_ref, {"status": "confirmed"})
-
-        batch.commit()
+        doc_ref.update({
+            "read": True
+        })
 
         return jsonify({
             "success": True,
             "orderId": order_id,
-            "itemId": item_id,
             "read": True
         })
 
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+
 
 
 
