@@ -557,7 +557,70 @@ def update_item_status():
             "success": False,
             "error": str(e)
         }), 500
-   
+#----------------------------------
+# @app.route("/update_item_status_confirmed", methods=["POST"])
+def update_item_status_confirmed():
+    ofmname = request.args.get("ofmname")
+    order_id = request.args.get("orderId")
+    item_id = request.args.get("itemId")
+
+    if not ofmname or not order_id or not item_id:
+        return jsonify({
+            "success": False,
+            "message": "missing parameters"
+        }), 400
+
+    try:
+        # 🔹 path: OFM_name/{ofmname}/partner/{partnershop}/orders/{orderId}
+        order_ref = (
+            db.collection("OFM_name")
+              .document(ofmname)
+              .collection("partner")
+              .document(slaveshopname)   # ถ้าคุณใช้ partnershop จาก token หรือ middleware
+              .collection("orders")
+              .document(order_id)
+        )
+
+        order_doc = order_ref.get()
+        if not order_doc.exists:
+            return jsonify({
+                "success": False,
+                "message": "order not found"
+            }), 404
+
+        order_data = order_doc.to_dict()
+        items = order_data.get("items", [])
+
+        updated = False
+        for item in items:
+            if str(item.get("serial_order")) == str(item_id):
+                item["status"] = "confirmed"
+                updated = True
+                break
+
+        if not updated:
+            return jsonify({
+                "success": False,
+                "message": "item not found"
+            }), 404
+
+        order_ref.update({
+            "items": items
+        })
+
+        return jsonify({
+            "success": True,
+            "message": "item status updated to confirmed",
+            "itemId": item_id,
+            "orderId": order_id
+        })
+
+    except Exception as e:
+        return jsonify({
+            "success": False,
+            "error": str(e)
+        }), 500
+ 
 #----------------------------------
 @app.route("/get_partner_orders", methods=["GET"])
 def get_partner_orders():
