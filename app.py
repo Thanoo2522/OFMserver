@@ -448,56 +448,24 @@ def partner_notifications():
         return jsonify({"success": False})
 
 #---------------------------------
+
 @app.route("/update_item_status", methods=["POST"])
 def update_item_status():
     try:
-        ofmname = request.args.get("ofmname")
-        partnershop = request.args.get("partnershop")
-        order_id = request.args.get("orderId")
-        item_id = request.args.get("itemId")  # ← "0", "1", "2"
+        data = request.get_json(force=True)
 
-        if not all([ofmname, partnershop, order_id, item_id]):
-            return jsonify({"error": "missing params"}), 400
-
-        doc_ref = (
-            db.collection("OFM_name")
-              .document(ofmname)
-              .collection("partner")
-              .document(partnershop)
-              .collection("system")
-              .document("notification")
-              .collection("orders")
-              .document(order_id)
-        )
-
-        # ✅ update nested map
-        doc_ref.update({
-            f"items.{item_id}.status": "confirmed",
-            f"items.{item_id}.read": True
-        })
-
-        return jsonify({
-            "success": True,
-            "orderId": order_id,
-            "itemIndex": item_id
-        })
-
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
-
-
- #----------------------------------
-@app.route("/update_partner_notification_read", methods=["POST"])
-def update_partner_notification_read():
-    try:
-        ofmname = request.args.get("ofmname")
-        partnershop = request.args.get("partnershop")
-        order_id = request.args.get("orderId")
+        ofmname = data.get("ofmname")
+        partnershop = data.get("partnershop")
+        order_id = data.get("orderId")
+        item_ids = data.get("itemIds", [])  # [0,1,2,...]
 
         if not ofmname or not partnershop or not order_id:
             return jsonify({"error": "missing params"}), 400
 
-        doc_ref = (
+        # ===============================
+        # 1️⃣ notification.read = true
+        # ===============================
+        notify_ref = (
             db.collection("OFM_name")
               .document(ofmname)
               .collection("partner")
@@ -508,28 +476,32 @@ def update_partner_notification_read():
               .document(order_id)
         )
 
-        doc_ref.update({
+        notify_ref.update({
             "read": True
         })
+
+        # ===============================
+        # 2️⃣ update item status (batch)
+        # ===============================
+        update_fields = {}
+
+        for item_id in item_ids:
+            update_fields[f"items.{item_id}.status"] = "confirmed"
+            # ถ้าต้องการ read ราย item เปิดได้
+            # update_fields[f"items.{item_id}.read"] = True
+
+        if update_fields:
+            notify_ref.update(update_fields)
 
         return jsonify({
             "success": True,
             "orderId": order_id,
+            "updatedItems": item_ids,
             "read": True
-        })
+        }), 200
 
     except Exception as e:
         return jsonify({"error": str(e)}), 500
-
-
-
-
-
- #----------------------------------    
-
-    
- 
-
    
 #----------------------------------
 @app.route("/get_partner_orders", methods=["GET"])
