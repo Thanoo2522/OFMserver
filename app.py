@@ -452,15 +452,14 @@ def partner_notifications():
 def update_item_status():
     try:
         ofmname = request.args.get("ofmname")
-        partnershop = request.args.get("partnershop")  # แนะนำให้ส่งมาด้วย
+        partnershop = request.args.get("partnershop")
         order_id = request.args.get("orderId")
-        item_id = request.args.get("itemId")  # serial_order (0,1,2,...)
+        item_id = request.args.get("itemId")  # ← "0", "1", "2"
 
-        if not all([ofmname, order_id, item_id]):
+        if not all([ofmname, partnershop, order_id, item_id]):
             return jsonify({"error": "missing params"}), 400
 
-        # 🔹 path: orders/{orderId}/items/{itemId}
-        item_ref = (
+        doc_ref = (
             db.collection("OFM_name")
               .document(ofmname)
               .collection("partner")
@@ -469,23 +468,23 @@ def update_item_status():
               .document("notification")
               .collection("orders")
               .document(order_id)
-              .collection("items")
-              .document(item_id)
         )
 
-        item_ref.update({
-            "status": "confirmed" 
+        # ✅ update nested map
+        doc_ref.update({
+            f"items.{item_id}.status": "confirmed",
+            f"items.{item_id}.read": True
         })
 
         return jsonify({
             "success": True,
             "orderId": order_id,
-            "itemId": item_id,
-            "status": "confirmed"
+            "itemIndex": item_id
         })
 
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+
 
  #----------------------------------
 @app.route("/update_partner_notification_read", methods=["POST"])
