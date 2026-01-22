@@ -566,10 +566,7 @@ def update_item_status_confirmed():
     slaveshopname = request.args.get("partnershop")
 
     if not ofmname or not order_id or not item_id or not slaveshopname:
-        return jsonify({
-            "success": False,
-            "message": "missing parameters"
-        }), 400
+        return jsonify({"success": False, "message": "missing parameters"}), 400
 
     try:
         order_ref = (
@@ -581,18 +578,19 @@ def update_item_status_confirmed():
               .document(order_id)
         )
 
-        order_doc = order_ref.get()
-        if not order_doc.exists:
-            return jsonify({
-                "success": False,
-                "message": "order not found"
-            }), 404
+        doc = order_ref.get()
+        if not doc.exists:
+            return jsonify({"success": False, "message": "order not found"}), 404
 
-        data = order_doc.to_dict()
+        data = doc.to_dict()
         items = data.get("items", [])
+
+        print("DEBUG items:", items)
+        print("DEBUG itemId:", item_id)
 
         found = False
         for item in items:
+            # 🔴 แก้ตรงนี้ให้ตรงกับ field จริงใน Firestore
             if str(item.get("serial_order")) == str(item_id):
                 item["status"] = "confirmed"
                 found = True
@@ -601,23 +599,21 @@ def update_item_status_confirmed():
         if not found:
             return jsonify({
                 "success": False,
-                "message": "item not found"
+                "message": "item not matched",
+                "items": items
             }), 404
 
         order_ref.update({"items": items})
 
         return jsonify({
             "success": True,
-            "orderId": order_id,
             "itemId": item_id,
             "status": "confirmed"
         })
 
     except Exception as e:
-        return jsonify({
-            "success": False,
-            "error": str(e)
-        }), 500
+        return jsonify({"success": False, "error": str(e)}), 500
+
 #------------------------------------------
 @app.route("/get_partner_orders", methods=["GET"])
 def get_partner_orders():
