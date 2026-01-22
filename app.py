@@ -557,64 +557,8 @@ def update_item_status():
             "success": False,
             "error": str(e)
         }), 500
+   
 #----------------------------------
-@app.route("/update_item_status_confirmed", methods=["POST"])
-def update_item_status_confirmed():
-    ofmname = request.args.get("ofmname")
-    order_id = request.args.get("orderId")
-    item_id = request.args.get("itemId")
-    slaveshopname = request.args.get("partnershop")
-
-    if not ofmname or not order_id or not item_id or not slaveshopname:
-        return jsonify({"success": False, "message": "missing parameters"}), 400
-
-    try:
-        order_ref = (
-            db.collection("OFM_name")
-              .document(ofmname)
-              .collection("partner")
-              .document(slaveshopname)
-              .collection("orders")
-              .document(order_id)
-        )
-
-        doc = order_ref.get()
-        if not doc.exists:
-            return jsonify({"success": False, "message": "order not found"}), 404
-
-        data = doc.to_dict()
-        items = data.get("items", [])
-
-        print("DEBUG items:", items)
-        print("DEBUG itemId:", item_id)
-
-        found = False
-        for item in items:
-            # 🔴 แก้ตรงนี้ให้ตรงกับ field จริงใน Firestore
-            if str(item.get("serial_order")) == str(item_id):
-                item["status"] = "confirmed"
-                found = True
-                break
-
-        if not found:
-            return jsonify({
-                "success": False,
-                "message": "item not matched",
-                "items": items
-            }), 404
-
-        order_ref.update({"items": items})
-
-        return jsonify({
-            "success": True,
-            "itemId": item_id,
-            "status": "confirmed"
-        })
-
-    except Exception as e:
-        return jsonify({"success": False, "error": str(e)}), 500
-
-#------------------------------------------
 @app.route("/get_partner_orders", methods=["GET"])
 def get_partner_orders():
     try:
