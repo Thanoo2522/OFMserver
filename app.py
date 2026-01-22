@@ -454,10 +454,14 @@ def update_partner_notification_read():
         ofmname = request.args.get("ofmname")
         partnershop = request.args.get("partnershop")
         order_id = request.args.get("orderId")
+        item_id = request.args.get("itemId")
 
-        if not ofmname or not partnershop or not order_id:
+        if not all([ofmname, partnershop, order_id, item_id]):
             return jsonify({"error": "missing params"}), 400
 
+        db_batch = db.batch()
+
+        # 🔹 order level
         doc_ref = (
             db.collection("OFM_name")
               .document(ofmname)
@@ -469,53 +473,45 @@ def update_partner_notification_read():
               .document(order_id)
         )
 
-        doc_ref.update({
-            "read": True
-        })
-
-        return jsonify({
-            "success": True,
-            "orderId": order_id,
-            "read": True
-        })
-
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
-
- #----------------------------------    
-@app.route("/confirmfinal_order", methods=["POST"])
-def confirmfinal_order():
-    try:
-        ofmname = request.args.get("ofmname")
-        partnershop = request.args.get("partnershop")
-        order_id = request.args.get("orderId")
-
-        if not ofmname or not partnershop or not order_id:
-            return jsonify({"error": "missing params"}), 400
-
-        order_ref = (
+        # 🔹 item level
+        item_ref = (
             db.collection("OFM_name")
               .document(ofmname)
               .collection("partner")
               .document(partnershop)
+              .collection("system")
+              .document("notification")
               .collection("orders")
               .document(order_id)
+              .collection("items")
+              .document(str(item_id))
         )
 
-        order_ref.update({
-            "status": "prepared",
-            "preparedAt": firestore.SERVER_TIMESTAMP
+        db_batch.update(doc_ref, {
+            "read": True
         })
+
+        db_batch.update(item_ref, {
+            "status": "confirmed"
+        })
+
+        db_batch.commit()
 
         return jsonify({
             "success": True,
             "orderId": order_id,
-            "status": "prepared"
+            "itemId": item_id,
+            "read": True,
+            "status": "confirmed"
         })
 
     except Exception as e:
         return jsonify({"error": str(e)}), 500
-#-----------------------------------
+
+
+ #----------------------------------    
+
+    
 @app.route("/update_item_status", methods=["POST"])
 def update_item_status():
     try:
