@@ -500,47 +500,63 @@ def update_partner_notification_read():
  #----------------------------------    
 
     
-@app.route("/update_item_status", methods=["POST"])
-def update_item_status():
+@app.route("/update_partner_notification_read", methods=["POST"])
+def update_partner_notification_read():
     try:
         ofmname = request.args.get("ofmname")
-        username = request.args.get("username")
+        partnershop = request.args.get("partnershop")
         order_id = request.args.get("orderId")
-        item_id = request.args.get("itemId")
+        item_id = request.args.get("itemId")  # itemID ข้างใน
 
-        if not all([ofmname, username, order_id, item_id]):
-            return jsonify({
-                "success": False,
-                "error": "missing params"
-            }), 400
+        if not all([ofmname, partnershop, order_id, item_id]):
+            return jsonify({"error": "missing params"}), 400
 
-        item_ref = (
+        order_ref = (
             db.collection("OFM_name")
               .document(ofmname)
-              .collection("customers")
-              .document(username)
+              .collection("partner")
+              .document(partnershop)
+              .collection("system")
+              .document("notification")
               .collection("orders")
               .document(order_id)
-              .collection("items")
-              .document(str(item_id))
         )
 
-        item_ref.update({
-            "status": "read"
-        })
+        items_col = order_ref.collection("items")
+
+        # 🔍 หา document ที่มี field itemID ตรงกัน
+        docs = items_col.where("itemID", "==", item_id).stream()
+
+        batch = db.batch()
+        found = False
+
+        for doc in docs:
+            found = True
+            # update item
+            batch.update(doc.reference, {
+                "status": "confirmed"
+            })
+
+            # update order (ถ้าต้องการ)
+            batch.update(order_ref, {
+                "read": True
+            })
+
+        if not found:
+            return jsonify({"error": "item not found"}), 404
+
+        batch.commit()
 
         return jsonify({
             "success": True,
             "orderId": order_id,
             "itemId": item_id,
-            "status": "read"
+            "status": "confirmed"
         })
 
     except Exception as e:
-        return jsonify({
-            "success": False,
-            "error": str(e)
-        }), 500
+        return jsonify({"error": str(e)}), 500
+
    
 #----------------------------------
 @app.route("/get_partner_orders", methods=["GET"])
