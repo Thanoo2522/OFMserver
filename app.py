@@ -447,8 +447,6 @@ def partner_notifications():
         traceback.print_exc()
         return jsonify({"success": False})
 
-#---------------------------------
-
 @app.route("/update_item_status", methods=["POST"])
 def update_item_status():
     try:
