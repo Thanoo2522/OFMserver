@@ -448,42 +448,6 @@ def partner_notifications():
         return jsonify({"success": False})
 
  #----------------------------------
-@app.route("/update_partner_notification_read", methods=["POST"])
-def update_partner_notification_read():
-    try:
-        ofmname = request.args.get("ofmname")
-        partnershop = request.args.get("partnershop")
-        order_id = request.args.get("orderId")
-
-        if not ofmname or not partnershop or not order_id:
-            return jsonify({"error": "missing params"}), 400
-
-        doc_ref = (
-            db.collection("OFM_name")
-              .document(ofmname)
-              .collection("partner")
-              .document(partnershop)
-              .collection("system")
-              .document("notification")
-              .collection("orders")
-              .document(order_id)
-        )
-
-        doc_ref.update({
-            "read": True
-        })
-
-        return jsonify({
-            "success": True,
-            "orderId": order_id,
-            "read": True
-        })
-
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
-
-
-
 
 
  #----------------------------------    
