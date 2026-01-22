@@ -558,25 +558,25 @@ def update_item_status():
             "error": str(e)
         }), 500
 #----------------------------------
-# @app.route("/update_item_status_confirmed", methods=["POST"])
+@app.route("/update_item_status_confirmed", methods=["POST"])
 def update_item_status_confirmed():
     ofmname = request.args.get("ofmname")
     order_id = request.args.get("orderId")
     item_id = request.args.get("itemId")
+    slaveshopname = request.args.get("partnershop")
 
-    if not ofmname or not order_id or not item_id:
+    if not ofmname or not order_id or not item_id or not slaveshopname:
         return jsonify({
             "success": False,
             "message": "missing parameters"
         }), 400
 
     try:
-        # 🔹 path: OFM_name/{ofmname}/partner/{partnershop}/orders/{orderId}
         order_ref = (
             db.collection("OFM_name")
               .document(ofmname)
               .collection("partner")
-              .document(slaveshopname)   # ถ้าคุณใช้ partnershop จาก token หรือ middleware
+              .document(slaveshopname)
               .collection("orders")
               .document(order_id)
         )
@@ -588,31 +588,29 @@ def update_item_status_confirmed():
                 "message": "order not found"
             }), 404
 
-        order_data = order_doc.to_dict()
-        items = order_data.get("items", [])
+        data = order_doc.to_dict()
+        items = data.get("items", [])
 
-        updated = False
+        found = False
         for item in items:
             if str(item.get("serial_order")) == str(item_id):
                 item["status"] = "confirmed"
-                updated = True
+                found = True
                 break
 
-        if not updated:
+        if not found:
             return jsonify({
                 "success": False,
                 "message": "item not found"
             }), 404
 
-        order_ref.update({
-            "items": items
-        })
+        order_ref.update({"items": items})
 
         return jsonify({
             "success": True,
-            "message": "item status updated to confirmed",
+            "orderId": order_id,
             "itemId": item_id,
-            "orderId": order_id
+            "status": "confirmed"
         })
 
     except Exception as e:
@@ -620,8 +618,7 @@ def update_item_status_confirmed():
             "success": False,
             "error": str(e)
         }), 500
- 
-#----------------------------------
+#------------------------------------------
 @app.route("/get_partner_orders", methods=["GET"])
 def get_partner_orders():
     try:
