@@ -454,15 +454,13 @@ def update_partner_notification_read():
         ofmname = request.args.get("ofmname")
         partnershop = request.args.get("partnershop")
         order_id = request.args.get("orderId")
-        item_id = request.args.get("itemId")
 
-        if not all([ofmname, partnershop, order_id, item_id]):
+        if not all([ofmname, partnershop, order_id]):
             return jsonify({"error": "missing params"}), 400
 
-        db_batch = db.batch()
+        batch = db.batch()
 
-        # 🔹 order level
-        doc_ref = (
+        order_ref = (
             db.collection("OFM_name")
               .document(ofmname)
               .collection("partner")
@@ -473,40 +471,30 @@ def update_partner_notification_read():
               .document(order_id)
         )
 
-        # 🔹 item level
-        item_ref = (
-            db.collection("OFM_name")
-              .document(ofmname)
-              .collection("partner")
-              .document(partnershop)
-              .collection("system")
-              .document("notification")
-              .collection("orders")
-              .document(order_id)
-              .collection("items")
-              .document(str(item_id))
-        )
-
-        db_batch.update(doc_ref, {
+        # 🔹 update order
+        batch.update(order_ref, {
             "read": True
         })
 
-        db_batch.update(item_ref, {
-            "status": "confirmed"
-        })
+        # 🔹 update items ทุกตัว
+        items_ref = order_ref.collection("items")
+        for doc in items_ref.stream():
+            batch.update(doc.reference, {
+                "status": "confirmed"
+            })
 
-        db_batch.commit()
+        batch.commit()
 
         return jsonify({
             "success": True,
             "orderId": order_id,
-            "itemId": item_id,
-            "read": True,
-            "status": "confirmed"
+            "order_read": True,
+            "items_status": "confirmed"
         })
 
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+
 
 
  #----------------------------------    
