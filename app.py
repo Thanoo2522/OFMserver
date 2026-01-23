@@ -446,6 +446,41 @@ def partner_notifications():
     except Exception as e:
         traceback.print_exc()
         return jsonify({"success": False})
+#--------------------------------------
+@app.route("/get_delivery_user", methods=["GET"])
+def get_delivery_user():
+    try:
+        nameOfm = request.args.get("nameOfm")
+        deluserName = request.args.get("deluserName")
+
+        if not nameOfm or not deluserName:
+            return jsonify({"error": "missing params"}), 400
+
+        # 🔹 path: OFM_name/{nameOfm}/delivery/{deluserName}
+        del_ref = (
+            db.collection("OFM_name")
+              .document(nameOfm)
+              .collection("delivery")
+              .document(deluserName)
+        )
+
+        del_doc = del_ref.get()
+        if not del_doc.exists:
+            return jsonify({"error": "delivery user not found"}), 404
+
+        data = del_doc.to_dict() or {}
+
+        return jsonify({
+            "success": True,
+            "delivery": {
+                "name": data.get("del_name", ""),
+                "phone": data.get("phone", ""),
+                "address": data.get("address", "")
+            }
+        }), 200
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 #----------------------------------
 @app.route("/update_item_status", methods=["POST"])
@@ -493,9 +528,9 @@ def update_item_status():
         update_fields = {}
 
         for item_id in item_ids:
-            # 🔥 item_id คือ key ใน map
-            update_fields[f"items.{item_id}.status"] = "confirmed"
-            # update_fields[f"items.{item_id}.read"] = True
+            # 🔥 item_id คือ key ใน map (itemId จริง)
+             update_fields[f"items.{item_id}.status"] = "confirmed"
+             # update_fields[f"items.{item_id}.read"] = True
 
         if update_fields:
             notify_ref.update(update_fields)
