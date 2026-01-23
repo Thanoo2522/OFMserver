@@ -803,11 +803,17 @@ def get_notifications():
 def confirm_order():
     try:
         # ------------------------------------------------
-        # 0) รับ parameter
+        # 0) รับ JSON body
         # ------------------------------------------------
-        nameOfm  = request.args.get("nameOfm")
-        userName = request.args.get("userName")
-        orderId  = request.args.get("orderId")
+        data = request.get_json(force=True)
+
+        nameOfm  = data.get("nameOfm")
+        userName = data.get("userName")
+        orderId  = data.get("orderId")
+
+        mandelivery   = data.get("mandelivery", "shop_rider")
+        pricedelivery = data.get("pricedelivery", 0)
+        del_name      = data.get("del_name", "")
 
         if not all([nameOfm, userName, orderId]):
             return jsonify({
@@ -844,7 +850,12 @@ def confirm_order():
         order_ref.update({
             "status": "orderconfirmed",
             "Preorder": 0,
-            "confirmedAt": firestore.SERVER_TIMESTAMP
+            "confirmedAt": firestore.SERVER_TIMESTAMP,
+
+            # 🔥 delivery info
+            "mandelivery": mandelivery,
+            "pricedelivery": pricedelivery,
+            "del_name": del_name
         })
 
         # ------------------------------------------------
@@ -856,7 +867,7 @@ def confirm_order():
 
         # ------------------------------------------------
         # 4) load items + แยกตาม Partnershop
-        #     🔥 items => MAP (itemId เป็น key)
+        #     items => MAP (itemId เป็น key)
         # ------------------------------------------------
         items_ref = order_ref.collection("items")
         items_docs = items_ref.stream()
@@ -868,13 +879,12 @@ def confirm_order():
             item_count += 1
 
             itemId = doc.id
-            item   = doc.to_dict()
+            item   = doc.to_dict() or {}
 
             partnershop = item.get("Partnershop")
             if not partnershop:
                 continue
 
-            # ใส่ itemId ลงไปในข้อมูล
             item["itemId"] = itemId
 
             if partnershop not in partner_items:
@@ -882,7 +892,6 @@ def confirm_order():
                     "items": {}
                 }
 
-            # ✅ เก็บ item เป็น MAP
             partner_items[partnershop]["items"][itemId] = {
                 **item,
                 "status": item.get("status", "pending"),
@@ -898,7 +907,7 @@ def confirm_order():
         # ------------------------------------------------
         # 5) create notification (แยกร้าน)
         # ------------------------------------------------
-        for partnershop, data in partner_items.items():
+        for partnershop, pdata in partner_items.items():
             (
                 db.collection("OFM_name")
                   .document(nameOfm)
@@ -913,7 +922,13 @@ def confirm_order():
                       "nameOfm": nameOfm,
                       "userName": userName,
                       "partnershop": partnershop,
-                      "items": data["items"],   # 🔥 MAP
+
+                      # 🔥 delivery info
+                      "mandelivery": mandelivery,
+                      "pricedelivery": pricedelivery,
+                      "del_name": del_name,
+
+                      "items": pdata["items"],   # MAP
                       "read": False,
                       "createdAt": firestore.SERVER_TIMESTAMP
                   })
@@ -933,6 +948,7 @@ def confirm_order():
             "success": False,
             "error": str(e)
         }), 500
+
 #---------------------------------
 @app.route("/mark_partner_notification_read", methods=["POST"])
 def mark_partner_notification_read():
