@@ -447,21 +447,27 @@ def partner_notifications():
         traceback.print_exc()
         return jsonify({"success": False})
 
+#----------------------------------
 @app.route("/update_item_status", methods=["POST"])
 def update_item_status():
     try:
         data = request.get_json(force=True)
 
-        ofmname = data.get("ofmname")
+        ofmname     = data.get("ofmname")
         partnershop = data.get("partnershop")
-        order_id = data.get("orderId")
-        item_ids = data.get("itemIds", [])  # [0,1,2,...]
+        order_id    = data.get("orderId")
+
+        # 🔥 ตอนนี้ itemIds = itemId จริง (string)
+        item_ids    = data.get("itemIds", [])  # ["itemA123", "itemB456"]
 
         if not ofmname or not partnershop or not order_id:
             return jsonify({"error": "missing params"}), 400
 
+        if not item_ids:
+            return jsonify({"error": "no itemIds"}), 400
+
         # ===============================
-        # 1️⃣ notification.read = true
+        # 1️⃣ reference notification order
         # ===============================
         notify_ref = (
             db.collection("OFM_name")
@@ -474,19 +480,21 @@ def update_item_status():
               .document(order_id)
         )
 
+        # ===============================
+        # 2️⃣ mark order read
+        # ===============================
         notify_ref.update({
             "read": True
         })
 
         # ===============================
-        # 2️⃣ update item status (batch)
+        # 3️⃣ update item status (MAP)
         # ===============================
         update_fields = {}
 
         for item_id in item_ids:
+            # 🔥 item_id คือ key ใน map
             update_fields[f"items.{item_id}.status"] = "confirmed"
-
-            # ถ้าต้องการ read ราย item เปิดได้
             # update_fields[f"items.{item_id}.read"] = True
 
         if update_fields:
@@ -501,6 +509,7 @@ def update_item_status():
 
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+
    
 #----------------------------------
 @app.route("/get_partner_orders", methods=["GET"])
