@@ -485,6 +485,7 @@ def update_item_status():
 
         for item_id in item_ids:
             update_fields[f"items.{item_id}.status"] = "confirmed"
+
             # ถ้าต้องการ read ราย item เปิดได้
             # update_fields[f"items.{item_id}.read"] = True
 
@@ -731,6 +732,7 @@ def confirm_order():
 
         # ------------------------------------------------
         # 4) load items + แยกตาม Partnershop
+        #     🔥 items => MAP (itemId เป็น key)
         # ------------------------------------------------
         items_ref = order_ref.collection("items")
         items_docs = items_ref.stream()
@@ -748,16 +750,20 @@ def confirm_order():
             if not partnershop:
                 continue
 
-            # ใส่ itemId เข้าไปในข้อมูล (สำคัญ)
+            # ใส่ itemId ลงไปในข้อมูล
             item["itemId"] = itemId
 
             if partnershop not in partner_items:
                 partner_items[partnershop] = {
-                    "items": []
+                    "items": {}
                 }
 
-            # ✅ เก็บ item detail ทั้งก้อน
-            partner_items[partnershop]["items"].append(item)
+            # ✅ เก็บ item เป็น MAP
+            partner_items[partnershop]["items"][itemId] = {
+                **item,
+                "status": item.get("status", "pending"),
+                "read": False
+            }
 
         if item_count == 0:
             return jsonify({
@@ -783,7 +789,7 @@ def confirm_order():
                       "nameOfm": nameOfm,
                       "userName": userName,
                       "partnershop": partnershop,
-                      "items": data["items"],   # ✅ item detail
+                      "items": data["items"],   # 🔥 MAP
                       "read": False,
                       "createdAt": firestore.SERVER_TIMESTAMP
                   })
@@ -795,7 +801,7 @@ def confirm_order():
         return jsonify({
             "success": True,
             "partnerCount": len(partner_items)
-        })
+        }), 200
 
     except Exception as e:
         traceback.print_exc()
@@ -803,7 +809,6 @@ def confirm_order():
             "success": False,
             "error": str(e)
         }), 500
-
 #---------------------------------
 @app.route("/mark_partner_notification_read", methods=["POST"])
 def mark_partner_notification_read():
