@@ -522,15 +522,15 @@ def get_partner_orders():
         )
 
         results = []
-        customer_cache = {}   # ✅ cache customer ตาม userName
+        customer_cache = {}
 
         for d in docs:
             o = d.to_dict() or {}
             user_name = o.get("userName", "")
 
-            # -----------------------------
-            # 🔹 ดึง customer (ครั้งเดียวต่อ user)
-            # -----------------------------
+            # ------------------------------------------------
+            # 🔹 customer info (cache)
+            # ------------------------------------------------
             if user_name:
                 if user_name not in customer_cache:
                     customer_ref = (
@@ -539,54 +539,68 @@ def get_partner_orders():
                           .collection("customers")
                           .document(user_name)
                     )
-
-                    customer_doc = customer_ref.get()
-                    if customer_doc.exists:
-                        customer_cache[user_name] = customer_doc.to_dict()
-                    else:
-                        customer_cache[user_name] = {}
+                    doc_cus = customer_ref.get()
+                    customer_cache[user_name] = doc_cus.to_dict() if doc_cus.exists else {}
 
                 customer_data = customer_cache[user_name]
             else:
                 customer_data = {}
 
-            # -----------------------------
-            # 🔹 items
-            # -----------------------------
-            raw_items = o.get("items", [])
-            if not isinstance(raw_items, list):
-                continue
+            # ------------------------------------------------
+            # 🔹 items (🔥 รองรับ MAP + ARRAY)
+            # ------------------------------------------------
+            raw_items = o.get("items", {})
 
             items = []
             total_price = 0
             i = 1
 
-            for item in raw_items:
-                price = item.get("priceproduct", 0)
-                qty = item.get("numberproduct", 0)
+            # ✅ CASE 1: items เป็น MAP (ของใหม่)
+            if isinstance(raw_items, dict):
+                # เรียงตาม itemId หรือจะไม่เรียงก็ได้
+                for itemId, item in raw_items.items():
+                    price = item.get("priceproduct", 0)
+                    qty   = item.get("numberproduct", 0)
 
-                item["serial_order"] = i
-                item["TotalPrice"] = price * qty
-                total_price += item["TotalPrice"]
+                    item["itemId"] = itemId
+                    item["serial_order"] = i
+                    item["TotalPrice"] = price * qty
 
-                items.append(item)
-                i += 1
+                    total_price += item["TotalPrice"]
+                    items.append(item)
+                    i += 1
 
-            # -----------------------------
-            # 🔹 response
-            # -----------------------------
+            # ✅ CASE 2: items เป็น ARRAY (ของเก่า)
+            elif isinstance(raw_items, list):
+                for item in raw_items:
+                    price = item.get("priceproduct", 0)
+                    qty   = item.get("numberproduct", 0)
+
+                    item["serial_order"] = i
+                    item["TotalPrice"] = price * qty
+
+                    total_price += item["TotalPrice"]
+                    items.append(item)
+                    i += 1
+
+            else:
+                continue
+
+            # ------------------------------------------------
+            # 🔹 response ต่อ order
+            # ------------------------------------------------
             results.append({
                 "orderId": d.id,
                 "createdAt": o.get("createdAt"),
                 "userName": user_name,
 
-                # ✅ customer info จาก path
                 "customer": {
                     "username": customer_data.get("username", user_name),
                     "phone": customer_data.get("phone", ""),
                     "address": customer_data.get("address", "")
                 },
 
+                # 🔥 MAUI จะเห็นเป็น List เหมือนเดิม
                 "items": items,
                 "total_price": total_price
             })
@@ -596,9 +610,6 @@ def get_partner_orders():
     except Exception as e:
         print("ERROR get_partner_orders:", e)
         return jsonify({"error": str(e)}), 500
-
-
-
 
 
 
