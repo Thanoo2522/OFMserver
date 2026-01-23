@@ -446,6 +446,40 @@ def partner_notifications():
     except Exception as e:
         traceback.print_exc()
         return jsonify({"success": False})
+  #---------------------------------------
+
+@app.route("/get_active_delivery", methods=["GET"])
+def get_active_delivery():
+    try:
+        nameOfm = request.args.get("nameOfm")
+        if not nameOfm:
+            return jsonify({"error": "missing nameOfm"}), 400
+
+        col_ref = (
+            db.collection("OFM_name")
+              .document(nameOfm)
+              .collection("delivery")
+        )
+
+        docs = col_ref.where("status", "==", "active").stream()
+
+        riders = []
+        for d in docs:
+            data = d.to_dict() or {}
+            riders.append({
+                "deluserName": d.id,
+                "del_name": data.get("del_name", ""),
+                "pricedelivery": data.get("pricedelivery", 0)
+            })
+
+        return jsonify({
+            "success": True,
+            "riders": riders
+        }), 200
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
     #-------------------------------------
 @app.route("/update_delivery_price", methods=["POST"])
 def update_delivery_price():
