@@ -446,6 +446,39 @@ def partner_notifications():
     except Exception as e:
         traceback.print_exc()
         return jsonify({"success": False})
+    #-------------------------------------
+@app.route("/update_delivery_price", methods=["POST"])
+def update_delivery_price():
+    try:
+        data = request.get_json(force=True)
+
+        nameOfm = data.get("nameOfm")
+        deluserName = data.get("deluserName")
+        pricedelivery = data.get("pricedelivery")
+
+        if not nameOfm or not deluserName or pricedelivery is None:
+            return jsonify({"error": "missing params"}), 400
+
+        # 🔹 path: OFM_name/{nameOfm}/delivery/{deluserName}
+        del_ref = (
+            db.collection("OFM_name")
+              .document(nameOfm)
+              .collection("delivery")
+              .document(deluserName)
+        )
+
+        del_ref.update({
+            "pricedelivery": pricedelivery
+        })
+
+        return jsonify({
+            "success": True,
+            "pricedelivery": pricedelivery
+        }), 200
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
 #--------------------------------------
 @app.route("/get_delivery_user", methods=["GET"])
 def get_delivery_user():
@@ -475,12 +508,14 @@ def get_delivery_user():
             "delivery": {
                 "name": data.get("del_name", ""),
                 "phone": data.get("phone", ""),
-                "address": data.get("address", "")
+                "address": data.get("address", ""),
+                "pricedelivery": data.get("pricedelivery", 0)
             }
         }), 200
 
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+
 
 #----------------------------------
 @app.route("/update_item_status", methods=["POST"])
@@ -1443,7 +1478,7 @@ def register_del():
             "address": address,
             "phone": phone,
             "password_hash": generate_password_hash(password),
-            "role": "delivery",
+            "pricedelivery": 0,
             "status": "active",
             "created_at": datetime.utcnow()
         })
