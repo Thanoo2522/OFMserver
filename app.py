@@ -810,10 +810,11 @@ def confirm_order():
         userName = data.get("userName")
         orderId  = data.get("orderId")
 
-        pricedelivery = data.get("pricedelivery", 0)
-
         if not all([nameOfm, userName, orderId]):
-            return jsonify({"success": False, "error": "missing parameter"}), 400
+            return jsonify({
+                "success": False,
+                "error": "missing parameter"
+            }), 400
 
         # ------------------------------------------------
         # 1) reference customer + order
@@ -831,8 +832,12 @@ def confirm_order():
               .document(orderId)
         )
 
-        if not order_ref.get().exists:
-            return jsonify({"success": False, "error": "order not found"}), 404
+        order_doc = order_ref.get()
+        if not order_doc.exists:
+            return jsonify({
+                "success": False,
+                "error": "order not found"
+            }), 404
 
         # ------------------------------------------------
         # 2) update order (confirm)
@@ -844,17 +849,24 @@ def confirm_order():
         })
 
         # ------------------------------------------------
-        # 3) clear activeOrderId
+        # 3) clear activeOrderId ของ customer
         # ------------------------------------------------
-        customer_ref.update({"activeOrderId": ""})
+        customer_ref.update({
+            "activeOrderId": ""
+        })
 
         # ------------------------------------------------
         # 4) load items + แยกตาม Partnershop
         # ------------------------------------------------
-        partner_items = {}
-        total_price = 0
+        items_ref = order_ref.collection("items")
+        items_docs = items_ref.stream()
 
-        for doc in order_ref.collection("items").stream():
+        partner_items = {}
+        item_count = 0
+
+        for doc in items_docs:
+            item_count += 1
+
             itemId = doc.id
             item   = doc.to_dict() or {}
 
@@ -862,26 +874,29 @@ def confirm_order():
             if not partnershop:
                 continue
 
-            price = float(item.get("priceproduct", 0))
-            qty   = int(item.get("numberproduct", 1))
-            total_price += price * qty
+            item["itemId"] = itemId
 
-            partner_items.setdefault(partnershop, {})
-            partner_items[partnershop][itemId] = {
-                "Partnershop": partnershop,
-                "productname": item.get("productname", ""),
-                "username": userName,
-                "priceproduct": price,
-                "numberproduct": qty
+            if partnershop not in partner_items:
+                partner_items[partnershop] = {
+                    "items": {}
+                }
+
+            partner_items[partnershop]["items"][itemId] = {
+                **item,
+                "status": item.get("status", "pending"),
+                "read": False
             }
 
-        if not partner_items:
-            return jsonify({"success": False, "error": "no items"}), 400
+        if item_count == 0:
+            return jsonify({
+                "success": False,
+                "error": "no items"
+            }), 400
 
         # ------------------------------------------------
-        # 5) notification (logic เดิม)
+        # 5) create notification (แยกร้าน)
         # ------------------------------------------------
-        for partnershop, items in partner_items.items():
+        for partnershop, pdata in partner_items.items():
             (
                 db.collection("OFM_name")
                   .document(nameOfm)
@@ -896,58 +911,26 @@ def confirm_order():
                       "nameOfm": nameOfm,
                       "userName": userName,
                       "partnershop": partnershop,
-                      "items": items,
+                      "items": pdata["items"],
                       "read": False,
                       "createdAt": firestore.SERVER_TIMESTAMP
                   })
             )
 
         # ------------------------------------------------
-        # 6) 🔥 NEW: save to delivery/call_rider
-        # ------------------------------------------------
-        rider_order_ref = (
-            db.collection("OFM_name")
-              .document(nameOfm)
-              .collection("delivery")
-              .document("call_rider")
-              .collection("orders")
-              .document(orderId)
-        )
-
-        # header ระดับ order
-        rider_order_ref.set({
-            "orderId": orderId,
-            "userName": userName,
-            "totalprice": total_price,
-            "pricedelivery": pricedelivery,
-            "createdAt": firestore.SERVER_TIMESTAMP
-        })
-
-        # แยกตามร้าน
-        for partnershop, items in partner_items.items():
-            shop_ref = rider_order_ref.collection(partnershop)
-
-            for itemId, item in items.items():
-                shop_ref.document(itemId).set(item)
-
-            # flag ร้านพร้อมเรียกรถ
-            shop_ref.document("_meta").set({
-                "order": "available"
-            })
-
-        # ------------------------------------------------
-        # 7) response
+        # 6) response
         # ------------------------------------------------
         return jsonify({
             "success": True,
-            "partnerCount": len(partner_items),
-            "totalprice": total_price
+            "partnerCount": len(partner_items)
         }), 200
 
     except Exception as e:
         traceback.print_exc()
-        return jsonify({"success": False, "error": str(e)}), 500
-
+        return jsonify({
+            "success": False,
+            "error": str(e)
+        }), 500
 
 
 #---------------------------------
