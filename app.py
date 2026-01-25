@@ -912,7 +912,8 @@ def confirm_order():
         # 6) save to delivery/call_rider (โครงสร้างใหม่)
         # OFM_name/{nameOfm}/delivery/call_rider/orders/{orderId}
         # ------------------------------------------------
-        rider_order_ref = (
+        # ------------------------------------------------
+        call_rider_ref = (
             db.collection("OFM_name")
               .document(nameOfm)
               .collection("delivery")
@@ -921,28 +922,25 @@ def confirm_order():
               .document(orderId)
         )
 
-        # header ระดับ order
-        rider_order_ref.set({
+        call_rider_data = {
             "orderId": orderId,
             "username": userName,
-            "totalprice": total_price,
             "pricedelivery": pricedelivery,
             "mandelivery": mandelivery,
+            "status": "available",
             "createdAt": firestore.SERVER_TIMESTAMP
-        })
+        }
 
-        # แยกตามร้าน → itemID
-        for partnershop, items in partner_items.items():
-            shop_ref = rider_order_ref.collection(partnershop)
+        # ใส่ข้อมูลร้าน + itemID
+        for partnershop, pdata in partner_items.items():
+            shop_block = {
+                "order": "available",
+                "totalprice": pdata["totalprice"]
+            }
+            shop_block.update(pdata["items"])
+            call_rider_data[partnershop] = shop_block
 
-            for itemId, item in items.items():
-                shop_ref.document(itemId).set(item)
-
-            # meta ของร้าน
-            shop_ref.document("_meta").set({
-                "order": "available"
-            })
-
+        call_rider_ref.set(call_rider_data)
         # ------------------------------------------------
         # 7) response
         # ------------------------------------------------
