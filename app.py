@@ -811,6 +811,8 @@ def confirm_order():
         userName = data.get("userName")
         orderId  = data.get("orderId")
 
+        pricedelivery = data.get("pricedelivery", 0)
+
         if not all([nameOfm, userName, orderId]):
             return jsonify({
                 "success": False,
@@ -864,6 +866,7 @@ def confirm_order():
 
         partner_items = {}
         item_count = 0
+        totalprice = 0
 
         for doc in items_docs:
             item_count += 1
@@ -875,17 +878,19 @@ def confirm_order():
             if not partnershop:
                 continue
 
-            item["itemId"] = itemId
+            price = float(item.get("priceproduct", 0))
+            qty   = int(item.get("numberproduct", 1))
+            totalprice += price * qty
 
             if partnershop not in partner_items:
-                partner_items[partnershop] = {
-                    "items": {}
-                }
+                partner_items[partnershop] = {}
 
-            partner_items[partnershop]["items"][itemId] = {
-                **item,
-                "status": item.get("status", "pending"),
-                "read": False
+            partner_items[partnershop][itemId] = {
+                "Partnershop": partnershop,
+                "productname": item.get("productname", ""),
+                "username": userName,
+                "priceproduct": price,
+                "numberproduct": qty
             }
 
         if item_count == 0:
@@ -895,9 +900,9 @@ def confirm_order():
             }), 400
 
         # ------------------------------------------------
-        # 5) create notification (แยกร้าน)
+        # 5) create notification (เดิม)
         # ------------------------------------------------
-        for partnershop, pdata in partner_items.items():
+        for partnershop, items in partner_items.items():
             (
                 db.collection("OFM_name")
                   .document(nameOfm)
@@ -912,11 +917,38 @@ def confirm_order():
                       "nameOfm": nameOfm,
                       "userName": userName,
                       "partnershop": partnershop,
-                      "items": pdata["items"],
+                      "items": items,
                       "read": False,
                       "createdAt": firestore.SERVER_TIMESTAMP
                   })
             )
+
+        # ------------------------------------------------
+        # 🔥 5.5) NEW: save to delivery/call_rider
+        # ------------------------------------------------
+        call_rider_ref = (
+            db.collection("OFM_name")
+              .document(nameOfm)
+              .collection("delivery")
+              .document("call_rider")
+              .collection("orders")
+              .document(orderId)
+        )
+
+        call_rider_data = {
+            "username": userName,
+            "totalprice": totalprice,
+            "pricedelivery": pricedelivery,
+            "createdAt": firestore.SERVER_TIMESTAMP
+        }
+
+        for partnershop, items in partner_items.items():
+            call_rider_data[partnershop] = {
+                **items,
+                "order": "available"
+            }
+
+        call_rider_ref.set(call_rider_data)
 
         # ------------------------------------------------
         # 6) response
@@ -932,6 +964,7 @@ def confirm_order():
             "success": False,
             "error": str(e)
         }), 500
+
 
 
 #---------------------------------
