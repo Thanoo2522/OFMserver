@@ -806,11 +806,11 @@ def confirm_order():
         # ------------------------------------------------
         data = request.get_json(force=True)
 
-        nameOfm        = data.get("nameOfm")
-        userName       = data.get("userName")
-        orderId        = data.get("orderId")
-        mandelivery    = data.get("mandelivery")
-        pricedelivery  = data.get("pricedelivery", 0)
+        nameOfm       = data.get("nameOfm")
+        userName      = data.get("userName")
+        orderId       = data.get("orderId")
+        mandelivery   = data.get("mandelivery", "shop_rider")
+        pricedelivery = data.get("pricedelivery", 0)
 
         if not all([nameOfm, userName, orderId]):
             return jsonify({"success": False, "error": "missing parameter"}), 400
@@ -846,10 +846,12 @@ def confirm_order():
         # ------------------------------------------------
         # 3) clear activeOrderId
         # ------------------------------------------------
-        customer_ref.update({"activeOrderId": ""})
+        customer_ref.update({
+            "activeOrderId": ""
+        })
 
         # ------------------------------------------------
-        # 4) load items + แยกตาม Partnershop (รอบเดียว)
+        # 4) load items + แยกตาม Partnershop
         # ------------------------------------------------
         partner_items = {}
         total_price = 0
@@ -867,7 +869,7 @@ def confirm_order():
             total_price += price * qty
 
             partner_items.setdefault(partnershop, {})
-            partner_items[partnershop][itemId] = {
+            partner_items[partnershop][itemId] = {  
                 "Partnershop": partnershop,
                 "productname": item.get("productname", ""),
                 "imageurl":item.get("image_url",""),
@@ -883,7 +885,7 @@ def confirm_order():
             return jsonify({"success": False, "error": "no items"}), 400
 
         # ------------------------------------------------
-        # 5) notification (แยกร้าน)
+        # 5) notification (คง logic เดิม)
         # ------------------------------------------------
         for partnershop, items in partner_items.items():
             (
@@ -907,7 +909,8 @@ def confirm_order():
             )
 
         # ------------------------------------------------
-        # 6) save to delivery/call_rider
+        # 6) save to delivery/call_rider (โครงสร้างใหม่)
+        # OFM_name/{nameOfm}/delivery/call_rider/orders/{orderId}
         # ------------------------------------------------
         rider_order_ref = (
             db.collection("OFM_name")
@@ -921,23 +924,25 @@ def confirm_order():
         # header ระดับ order
         rider_order_ref.set({
             "orderId": orderId,
-            "userName": userName,
+            "username": userName,
             "totalprice": total_price,
             "pricedelivery": pricedelivery,
+            "mandelivery": mandelivery,
             "createdAt": firestore.SERVER_TIMESTAMP
         })
 
-        # แยกตามร้าน
+        # แยกตามร้าน → itemID
         for partnershop, items in partner_items.items():
             shop_ref = rider_order_ref.collection(partnershop)
 
             for itemId, item in items.items():
                 shop_ref.document(itemId).set(item)
 
-            # flag ร้านพร้อมเรียกรถ
+            # meta ของร้าน
             shop_ref.document("_meta").set({
                 "order": "available"
             })
+
         # ------------------------------------------------
         # 7) response
         # ------------------------------------------------
