@@ -922,7 +922,6 @@ def confirm_order():
         rider_order_ref.set({
             "orderId": orderId,
             "userName": userName,
-            "mandelivery": mandelivery,
             "totalprice": total_price,
             "pricedelivery": pricedelivery,
             "createdAt": firestore.SERVER_TIMESTAMP
@@ -935,10 +934,10 @@ def confirm_order():
             for itemId, item in items.items():
                 shop_ref.document(itemId).set(item)
 
+            # flag ร้านพร้อมเรียกรถ
             shop_ref.document("_meta").set({
                 "order": "available"
             })
-
         # ------------------------------------------------
         # 7) response
         # ------------------------------------------------
