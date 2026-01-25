@@ -870,6 +870,8 @@ def confirm_order():
             partner_items[partnershop][itemId] = {
                 "Partnershop": partnershop,
                 "productname": item.get("productname", ""),
+                "imageurl":item.get("image_url",""),
+                "ProductDetail": item.get("ProductDetail"),
                 "username": userName,
                 "priceproduct": price,
                 "numberproduct": qty,
