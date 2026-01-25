@@ -846,9 +846,7 @@ def confirm_order():
         # ------------------------------------------------
         # 3) clear activeOrderId
         # ------------------------------------------------
-        customer_ref.update({
-            "activeOrderId": ""
-        })
+        customer_ref.update({"activeOrderId": ""})
 
         # ------------------------------------------------
         # 4) load items + แยกตาม Partnershop
@@ -869,10 +867,10 @@ def confirm_order():
             total_price += price * qty
 
             partner_items.setdefault(partnershop, {})
-            partner_items[partnershop][itemId] = {  
+            partner_items[partnershop][itemId] = {
                 "Partnershop": partnershop,
                 "productname": item.get("productname", ""),
-                "imageurl":item.get("image_url",""),
+                "imageurl": item.get("image_url", ""),
                 "ProductDetail": item.get("ProductDetail"),
                 "username": userName,
                 "priceproduct": price,
@@ -885,7 +883,7 @@ def confirm_order():
             return jsonify({"success": False, "error": "no items"}), 400
 
         # ------------------------------------------------
-        # 5) notification (คง logic เดิม)
+        # 5) notification (logic เดิม)
         # ------------------------------------------------
         for partnershop, items in partner_items.items():
             (
@@ -909,9 +907,7 @@ def confirm_order():
             )
 
         # ------------------------------------------------
-        # 6) save to delivery/call_rider (โครงสร้างใหม่)
-        # OFM_name/{nameOfm}/delivery/call_rider/orders/{orderId}
-        # ------------------------------------------------
+        # 6) save to delivery/call_rider (document เดียว)
         # ------------------------------------------------
         call_rider_ref = (
             db.collection("OFM_name")
@@ -932,15 +928,24 @@ def confirm_order():
         }
 
         # ใส่ข้อมูลร้าน + itemID
-        for partnershop, pdata in partner_items.items():
+        for partnershop, items in partner_items.items():
+            shop_total = 0
             shop_block = {
-                "order": "available",
-                "totalprice": pdata["totalprice"]
+                "order": "available"
             }
-            shop_block.update(pdata["items"])
+
+            for itemId, item in items.items():
+                price = float(item.get("priceproduct", 0))
+                qty   = int(item.get("numberproduct", 1))
+                shop_total += price * qty
+
+                shop_block[itemId] = item
+
+            shop_block["totalprice"] = shop_total
             call_rider_data[partnershop] = shop_block
 
         call_rider_ref.set(call_rider_data)
+
         # ------------------------------------------------
         # 7) response
         # ------------------------------------------------
@@ -953,6 +958,7 @@ def confirm_order():
     except Exception as e:
         traceback.print_exc()
         return jsonify({"success": False, "error": str(e)}), 500
+
 
 
 
