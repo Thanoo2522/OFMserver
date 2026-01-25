@@ -798,7 +798,6 @@ def get_notifications():
 #-----------------------------
  
  #---------------------------------
-
 @app.route("/confirm_order", methods=["POST"])
 def confirm_order():
     try:
@@ -810,7 +809,6 @@ def confirm_order():
         nameOfm  = data.get("nameOfm")
         userName = data.get("userName")
         orderId  = data.get("orderId")
-        pricedelivery = data.get("pricedelivery", 0)
 
         if not all([nameOfm, userName, orderId]):
             return jsonify({
@@ -865,7 +863,6 @@ def confirm_order():
 
         partner_items = {}
         item_count = 0
-        totalprice = 0
 
         for doc in items_docs:
             item_count += 1
@@ -877,9 +874,7 @@ def confirm_order():
             if not partnershop:
                 continue
 
-            price = float(item.get("priceproduct", 0))
-            qty   = int(item.get("numberproduct", 1))
-            totalprice += price * qty
+            item["itemId"] = itemId
 
             if partnershop not in partner_items:
                 partner_items[partnershop] = {
@@ -887,14 +882,9 @@ def confirm_order():
                 }
 
             partner_items[partnershop]["items"][itemId] = {
-                "itemId": itemId,                           # ✅ MAUI ใช้
-                "Partnershop": partnershop,
-                "productname": item.get("productname", ""),
-                "username": userName,
-                "priceproduct": price,
-                "numberproduct": qty,
-                "status": item.get("status", "pending"),   # ✅ สำคัญ
-                "read": False                               # ✅ สำคัญ
+                **item,
+                "status": item.get("status", "pending"),
+                "read": False
             }
 
         if item_count == 0:
@@ -904,7 +894,7 @@ def confirm_order():
             }), 400
 
         # ------------------------------------------------
-        # 5) create notification (แยกร้าน)  ✅ MAUI ใช้ path นี้
+        # 5) create notification (แยกร้าน)
         # ------------------------------------------------
         for partnershop, pdata in partner_items.items():
             (
@@ -921,38 +911,11 @@ def confirm_order():
                       "nameOfm": nameOfm,
                       "userName": userName,
                       "partnershop": partnershop,
-                      "items": pdata["items"],   # ✅ structure เดิม
+                      "items": pdata["items"],
                       "read": False,
                       "createdAt": firestore.SERVER_TIMESTAMP
                   })
             )
-
-        # ------------------------------------------------
-        # 5.5) save to delivery/call_rider (สำหรับ rider)
-        # ------------------------------------------------
-        call_rider_ref = (
-            db.collection("OFM_name")
-              .document(nameOfm)
-              .collection("delivery")
-              .document("call_rider")
-              .collection("orders")
-              .document(orderId)
-        )
-
-        call_rider_data = {
-            "username": userName,
-            "totalprice": totalprice,
-            "pricedelivery": pricedelivery,
-            "createdAt": firestore.SERVER_TIMESTAMP
-        }
-
-        for partnershop, pdata in partner_items.items():
-            call_rider_data[partnershop] = {
-                **pdata["items"],
-                "order": "available"
-            }
-
-        call_rider_ref.set(call_rider_data)
 
         # ------------------------------------------------
         # 6) response
@@ -968,7 +931,6 @@ def confirm_order():
             "success": False,
             "error": str(e)
         }), 500
-
 
 
 #---------------------------------
