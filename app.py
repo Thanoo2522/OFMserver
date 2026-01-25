@@ -809,8 +809,9 @@ def confirm_order():
         nameOfm  = data.get("nameOfm")
         userName = data.get("userName")
         orderId  = data.get("orderId")
-        pricedelivery = data.get("pricedelivery")
-        if not all([nameOfm, userName, orderId,pricedelivery]):
+        mandelivery = data.get("mandelivery")
+        pricedelivery = data.get("pricedelivery", 0)
+        if not all([nameOfm, userName, orderId]):
             return jsonify({
                 "success": False,
                 "error": "missing parameter"
@@ -962,6 +963,7 @@ def confirm_order():
         rider_order_ref.set({
             "orderId": orderId,
             "userName": userName,
+            "mandelivery": mandelivery,
             "totalprice": total_price,
             "pricedelivery": pricedelivery,
             "createdAt": firestore.SERVER_TIMESTAMP
