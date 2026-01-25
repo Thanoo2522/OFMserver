@@ -810,7 +810,6 @@ def confirm_order():
         nameOfm  = data.get("nameOfm")
         userName = data.get("userName")
         orderId  = data.get("orderId")
-
         pricedelivery = data.get("pricedelivery", 0)
 
         if not all([nameOfm, userName, orderId]):
@@ -883,14 +882,19 @@ def confirm_order():
             totalprice += price * qty
 
             if partnershop not in partner_items:
-                partner_items[partnershop] = {}
+                partner_items[partnershop] = {
+                    "items": {}
+                }
 
-            partner_items[partnershop][itemId] = {
+            partner_items[partnershop]["items"][itemId] = {
+                "itemId": itemId,                           # ✅ MAUI ใช้
                 "Partnershop": partnershop,
                 "productname": item.get("productname", ""),
                 "username": userName,
                 "priceproduct": price,
-                "numberproduct": qty
+                "numberproduct": qty,
+                "status": item.get("status", "pending"),   # ✅ สำคัญ
+                "read": False                               # ✅ สำคัญ
             }
 
         if item_count == 0:
@@ -900,9 +904,9 @@ def confirm_order():
             }), 400
 
         # ------------------------------------------------
-        # 5) create notification (เดิม)
+        # 5) create notification (แยกร้าน)  ✅ MAUI ใช้ path นี้
         # ------------------------------------------------
-        for partnershop, items in partner_items.items():
+        for partnershop, pdata in partner_items.items():
             (
                 db.collection("OFM_name")
                   .document(nameOfm)
@@ -917,14 +921,14 @@ def confirm_order():
                       "nameOfm": nameOfm,
                       "userName": userName,
                       "partnershop": partnershop,
-                      "items": items,
+                      "items": pdata["items"],   # ✅ structure เดิม
                       "read": False,
                       "createdAt": firestore.SERVER_TIMESTAMP
                   })
             )
 
         # ------------------------------------------------
-        # 🔥 5.5) NEW: save to delivery/call_rider
+        # 5.5) save to delivery/call_rider (สำหรับ rider)
         # ------------------------------------------------
         call_rider_ref = (
             db.collection("OFM_name")
@@ -942,9 +946,9 @@ def confirm_order():
             "createdAt": firestore.SERVER_TIMESTAMP
         }
 
-        for partnershop, items in partner_items.items():
+        for partnershop, pdata in partner_items.items():
             call_rider_data[partnershop] = {
-                **items,
+                **pdata["items"],
                 "order": "available"
             }
 
