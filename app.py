@@ -798,6 +798,7 @@ def get_notifications():
 #-----------------------------
  
  #---------------------------------
+
 @app.route("/confirm_order", methods=["POST"])
 def confirm_order():
     try:
@@ -810,12 +811,11 @@ def confirm_order():
         userName = data.get("userName")
         orderId  = data.get("orderId")
 
-        mandelivery   = data.get("mandelivery", "shop_rider")
-        pricedelivery = data.get("pricedelivery", 0)
-        del_name      = data.get("del_name", "")
-
         if not all([nameOfm, userName, orderId]):
-            return jsonify({"success": False, "error": "missing parameter"}), 400
+            return jsonify({
+                "success": False,
+                "error": "missing parameter"
+            }), 400
 
         # ------------------------------------------------
         # 1) reference customer + order
@@ -827,10 +827,18 @@ def confirm_order():
               .document(userName)
         )
 
-        order_ref = customer_ref.collection("orders").document(orderId)
+        order_ref = (
+            customer_ref
+              .collection("orders")
+              .document(orderId)
+        )
 
-        if not order_ref.get().exists:
-            return jsonify({"success": False, "error": "order not found"}), 404
+        order_doc = order_ref.get()
+        if not order_doc.exists:
+            return jsonify({
+                "success": False,
+                "error": "order not found"
+            }), 404
 
         # ------------------------------------------------
         # 2) update order (confirm)
@@ -838,26 +846,28 @@ def confirm_order():
         order_ref.update({
             "status": "orderconfirmed",
             "Preorder": 0,
-            "confirmedAt": firestore.SERVER_TIMESTAMP,
-            "mandelivery": mandelivery,
-            "pricedelivery": pricedelivery,
-            "del_name": del_name
+            "confirmedAt": firestore.SERVER_TIMESTAMP
         })
 
         # ------------------------------------------------
-        # 3) clear activeOrderId
+        # 3) clear activeOrderId ของ customer
         # ------------------------------------------------
-        customer_ref.update({"activeOrderId": ""})
+        customer_ref.update({
+            "activeOrderId": ""
+        })
 
         # ------------------------------------------------
         # 4) load items + แยกตาม Partnershop
         # ------------------------------------------------
-        items_docs = order_ref.collection("items").stream()
+        items_ref = order_ref.collection("items")
+        items_docs = items_ref.stream()
 
         partner_items = {}
-        totalprice = 0
+        item_count = 0
 
         for doc in items_docs:
+            item_count += 1
+
             itemId = doc.id
             item   = doc.to_dict() or {}
 
@@ -865,28 +875,29 @@ def confirm_order():
             if not partnershop:
                 continue
 
-            price = float(item.get("priceproduct", 0))
-            qty   = int(item.get("numberproduct", 1))
-            totalprice += price * qty
+            item["itemId"] = itemId
 
             if partnershop not in partner_items:
-                partner_items[partnershop] = {}
+                partner_items[partnershop] = {
+                    "items": {}
+                }
 
-            partner_items[partnershop][itemId] = {
-                "Partnershop": partnershop,
-                "productname": item.get("productname", ""),
-                "username": userName,
-                "priceproduct": price,
-                "numberproduct": qty
+            partner_items[partnershop]["items"][itemId] = {
+                **item,
+                "status": item.get("status", "pending"),
+                "read": False
             }
 
-        if not partner_items:
-            return jsonify({"success": False, "error": "no items"}), 400
+        if item_count == 0:
+            return jsonify({
+                "success": False,
+                "error": "no items"
+            }), 400
 
         # ------------------------------------------------
-        # 5) create notification (เดิม)
+        # 5) create notification (แยกร้าน)
         # ------------------------------------------------
-        for partnershop, items in partner_items.items():
+        for partnershop, pdata in partner_items.items():
             (
                 db.collection("OFM_name")
                   .document(nameOfm)
@@ -901,42 +912,11 @@ def confirm_order():
                       "nameOfm": nameOfm,
                       "userName": userName,
                       "partnershop": partnershop,
-                      "mandelivery": mandelivery,
-                      "pricedelivery": pricedelivery,
-                      "del_name": del_name,
-                      "items": items,
+                      "items": pdata["items"],
                       "read": False,
                       "createdAt": firestore.SERVER_TIMESTAMP
                   })
             )
-
-        # ------------------------------------------------
-        # 🔥 5.5) NEW: save to delivery/call_rider
-        # ------------------------------------------------
-        call_rider_ref = (
-            db.collection("OFM_name")
-              .document(nameOfm)
-              .collection("delivery")
-              .document("call_rider")
-              .collection("orders")
-              .document(orderId)
-        )
-
-        call_rider_data = {
-            "username": userName,
-            "totalprice": totalprice,
-            "pricedelivery": pricedelivery,
-            "status": "available",
-            "createdAt": firestore.SERVER_TIMESTAMP
-        }
-
-        for partnershop, items in partner_items.items():
-            call_rider_data[partnershop] = {
-                **items,
-                "order": "available"
-            }
-
-        call_rider_ref.set(call_rider_data)
 
         # ------------------------------------------------
         # 6) response
@@ -948,7 +928,10 @@ def confirm_order():
 
     except Exception as e:
         traceback.print_exc()
-        return jsonify({"success": False, "error": str(e)}), 500
+        return jsonify({
+            "success": False,
+            "error": str(e)
+        }), 500
 
 
 #---------------------------------
