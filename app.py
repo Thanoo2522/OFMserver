@@ -513,6 +513,43 @@ def update_delivery_price():
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
+#------------------------------------------
+@app.route("/get_delivery_user", methods=["GET"])
+def get_delivery_user():
+    try:
+        ofmname = request.args.get("ofmname")
+        delname = request.args.get("delname")
+
+        if not ofmname or not delname:
+            return jsonify({"error": "missing params"}), 400
+
+        rider_ref = (
+            db.collection("OFM_name")
+              .document(ofmname)
+              .collection("delivery")
+              .document(delname)
+        )
+
+        rider_doc = rider_ref.get()
+
+        if not rider_doc.exists:
+            return jsonify({"error": "delivery user not found"}), 404
+
+        data = rider_doc.to_dict()
+
+        result = {
+            "del_name": delname,
+            "name": data.get("name", ""),
+            "phone": data.get("phone", ""),
+            "address": data.get("address", ""),
+            "status": data.get("status", "active")
+        }
+
+        return jsonify(result), 200
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
 #--------------------------------------
 @app.route("/get_rider_orders", methods=["GET"])
 def get_rider_orders():
