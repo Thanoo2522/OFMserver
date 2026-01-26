@@ -633,11 +633,7 @@ def update_item_status():
         return jsonify({"error": str(e)}), 500
 
 #-------------------------------------------------------------
-from flask import Flask, request, jsonify
-from google.cloud import firestore
-
-app = Flask(__name__)
-db = firestore.Client()
+ 
 
 @app.route("/get_rider_orders", methods=["GET"])
 def get_rider_orders():
