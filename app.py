@@ -560,6 +560,7 @@ def update_item_status():
         ofmname     = data.get("ofmname")
         partnershop = data.get("partnershop")
         order_id    = data.get("orderId")
+        riderservice = data.get("namerider")
 
         # 🔥 ตอนนี้ itemIds = itemId จริง (string)
         item_ids    = data.get("itemIds", [])  # ["itemA123", "itemB456"]
@@ -604,12 +605,36 @@ def update_item_status():
         if update_fields:
             notify_ref.update(update_fields)
 
+
+                         # ===============================
+        # 4️⃣ update delivery order item prefare -> ready
+        # ===============================
+        delivery_order_ref = (
+            db.collection("OFM_name")
+              .document(ofmname)
+              .collection("delivery")
+              .document(riderservice)
+              .collection("orders")
+              .document(order_id)
+        )
+
+        delivery_update = {}
+
+        for item_id in item_ids:
+            # path: {partnershop}/{itemID}/prefare
+            delivery_update[f"{partnershop}.{item_id}.prefare"] = "ready"
+
+        if delivery_update:
+            delivery_order_ref.update(delivery_update)
+   
+
         return jsonify({
             "success": True,
             "orderId": order_id,
             "updatedItems": item_ids,
             "read": True
         }), 200
+
 
     except Exception as e:
         return jsonify({"error": str(e)}), 500
@@ -706,6 +731,7 @@ def get_partner_orders():
                 "orderId": d.id,
                 "createdAt": o.get("createdAt"),
                 "userName": user_name,
+                "del_nameservice": o.get("del_nameservice", ""),
 
                 "customer": {
                     "username": customer_data.get("username", user_name),
