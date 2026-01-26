@@ -643,7 +643,7 @@ def get_rider_orders():
             return jsonify({"error": "missing params"}), 400
 
         orders_ref = (
-            db.collection("OFM_name")
+            db.collection("FM_name")
               .document(ofmname)
               .collection("delivery")
               .document(delname)
@@ -652,16 +652,18 @@ def get_rider_orders():
               .where("del_nameservice", "==", delname)
         )
 
+        docs = orders_ref.stream()
         results = []
 
-        for doc in orders_ref.stream():
+        for doc in docs:
             data = doc.to_dict()
-            username = data.get("username")
 
-            # -----------------------------
-            # 🔹 ดึง customer ตาม username ของ order นี้
-            # -----------------------------
+            # ----------------------------
+            # 1) ดึง customer ตาม username
+            # ----------------------------
+            username = data.get("username", "")
             customer_info = {}
+
             if username:
                 cust_ref = (
                     db.collection("FM_name")
@@ -679,35 +681,37 @@ def get_rider_orders():
                         "address": cust.get("address", "")
                     }
 
-            # -----------------------------
-            # 🔹 ดึงสินค้า
-            # -----------------------------
+            # ----------------------------
+            # 2) ดึงรายการสินค้า
+            # ----------------------------
             items = []
             total_price = 0
             serial = 1
 
-            for key, val in data.items():
-                if isinstance(val, dict) and "productname" in val:
-                    number = val.get("numberproduct", 1)
-                    price = val.get("priceproduct", 0)
+            for it in data.get("items", []):
+                number = it.get("numberproduct", 1)
+                price = it.get("priceproduct", 0)
 
-                    items.append({
-                        "serial_order": serial,
-                        "productname": val.get("productname"),
-                        "numberproduct": number,
-                        "priceproduct": price,
-                        "ProductDetail": val.get("ProductDetail", ""),
-                        "image_url": val.get("image_url", "")
-                    })
+                items.append({
+                    "serial_order": serial,
+                    "productname": it.get("productname", ""),
+                    "numberproduct": number,
+                    "priceproduct": price,
+                    "ProductDetail": it.get("ProductDetail", ""),
+                    "image_url": it.get("image_url", "")
+                })
 
-                    total_price += number * price
-                    serial += 1
+                total_price += number * price
+                serial += 1
 
+            # ----------------------------
+            # 3) pack order
+            # ----------------------------
             results.append({
                 "orderId": doc.id,
                 "status": data.get("status"),
                 "username": username,
-                "customer": customer_info,   # ✅ ผูกกับ order
+                "customer": customer_info,
                 "pricedelivery": data.get("pricedelivery", 0),
                 "total_price": total_price,
                 "items": items
@@ -719,6 +723,7 @@ def get_rider_orders():
 
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+
 
 
 
