@@ -878,7 +878,7 @@ def confirm_order():
                     "ProductDetail": item.get("ProductDetail", ""),
                     "priceproduct": price,
                     "numberproduct": qty,
-                    "imageurl": item.get("image_url",""),
+                    "image_url": item.get("image_url",""),
                     #"prefare": "available"
                 }
 
