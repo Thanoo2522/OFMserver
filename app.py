@@ -633,8 +633,6 @@ def update_item_status():
         return jsonify({"error": str(e)}), 500
 
 #-------------------------------------------------------------
- 
-
 @app.route("/get_rider_orders", methods=["GET"])
 def get_rider_orders():
     try:
@@ -644,11 +642,33 @@ def get_rider_orders():
         if not ofmname or not delname:
             return jsonify({"error": "missing params"}), 400
 
-        orders_ref = (
+        # -----------------------------
+        # 1️⃣ Rider / Delivery Info
+        # -----------------------------
+        rider_ref = (
             db.collection("OFM_name")
               .document(ofmname)
               .collection("delivery")
               .document(delname)
+        )
+
+        rider_doc = rider_ref.get()
+        if not rider_doc.exists:
+            return jsonify({"error": "rider not found"}), 404
+
+        rider_data = rider_doc.to_dict()
+
+        rider_info = {
+            "del_name": rider_data.get("del_name", delname),
+            "phone": rider_data.get("phone", ""),
+            "address": rider_data.get("address", "")
+        }
+
+        # -----------------------------
+        # 2️⃣ Orders
+        # -----------------------------
+        orders_ref = (
+            rider_ref
               .collection("orders")
               .where("status", "==", "available")
               .where("del_nameservice", "==", delname)
@@ -664,33 +684,37 @@ def get_rider_orders():
             total_price = 0
             serial = 1
 
-            # 🔥 loop เอาเฉพาะ field ที่เป็นสินค้า (map)
             for key, val in data.items():
                 if isinstance(val, dict) and "productname" in val:
-                    item = {
+                    qty = val.get("numberproduct", 1)
+                    price = val.get("priceproduct", 0)
+
+                    items.append({
                         "serial_order": serial,
                         "productname": val.get("productname"),
-                        "numberproduct": val.get("numberproduct", 1),
-                        "priceproduct": val.get("priceproduct", 0),
+                        "numberproduct": qty,
+                        "priceproduct": price,
                         "ProductDetail": val.get("ProductDetail", ""),
                         "image_url": val.get("image_url", "")
-                    }
+                    })
 
-                    total_price += item["numberproduct"] * item["priceproduct"]
-                    items.append(item)
+                    total_price += qty * price
                     serial += 1
 
             results.append({
                 "orderId": data.get("orderId", doc.id),
                 "status": data.get("status"),
-                "del_nameservice": data.get("del_nameservice"),
                 "username": data.get("username"),
+                "del_nameservice": data.get("del_nameservice"),
                 "pricedelivery": data.get("pricedelivery", 0),
                 "total_price": total_price,
                 "items": items
             })
 
-        return jsonify(results), 200
+        return jsonify({
+            "rider": rider_info,
+            "orders": results
+        }), 200
 
     except Exception as e:
         return jsonify({"error": str(e)}), 500
