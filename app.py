@@ -806,11 +806,11 @@ def confirm_order():
         # ------------------------------------------------
         data = request.get_json(force=True)
 
-        nameOfm       = data.get("nameOfm")
-        userName      = data.get("userName")
-        orderId       = data.get("orderId")
-        mandelivery   = data.get("mandelivery")
-        pricedelivery = data.get("pricedelivery", 0)
+        nameOfm         = data.get("nameOfm")
+        userName        = data.get("userName")
+        orderId         = data.get("orderId")
+        mandelivery     = data.get("mandelivery")
+        pricedelivery   = data.get("pricedelivery", 0)
         del_nameservice = data.get("delman")
 
         if not all([nameOfm, userName, orderId]):
@@ -868,17 +868,7 @@ def confirm_order():
             total_price += price * qty
 
             partner_items.setdefault(partnershop, {})
-            partner_items[partnershop][itemId] = {
-                "Partnershop": partnershop,
-                "productname": item.get("productname", ""),
-                "imageurl": item.get("image_url", ""),
-                "ProductDetail": item.get("ProductDetail"),
-                "username": userName,
-                "priceproduct": price,
-                "numberproduct": qty,
-                "status": item.get("status", "pending"),
-                "read": False
-            }
+            partner_items[partnershop][itemId] = item
 
         if not partner_items:
             return jsonify({"success": False, "error": "no items"}), 400
@@ -908,7 +898,7 @@ def confirm_order():
             )
 
         # ------------------------------------------------
-        # 6) save to delivery/call_rider (document เดียว)
+        # 6) save to delivery/{rider}/orders/{orderId}
         # ------------------------------------------------
         call_rider_ref = (
             db.collection("OFM_name")
@@ -923,13 +913,13 @@ def confirm_order():
             "orderId": orderId,
             "username": userName,
             "pricedelivery": pricedelivery,
-            "del_nameservice":del_nameservice,
+            "del_nameservice": del_nameservice,
             "mandelivery": mandelivery,
             "status": "available",
             "createdAt": firestore.SERVER_TIMESTAMP
         }
 
-        # ใส่ข้อมูลร้าน + itemID
+        # ใส่ข้อมูลร้าน + itemID (เฉพาะ itemId)
         for partnershop, items in partner_items.items():
             shop_total = 0
             shop_block = {
@@ -941,11 +931,13 @@ def confirm_order():
                 qty   = int(item.get("numberproduct", 1))
                 shop_total += price * qty
 
-                shop_block[itemId] = item
+                # ✅ เก็บเฉพาะ itemId
+                shop_block[itemId] = True
 
             shop_block["totalprice"] = shop_total
             call_rider_data[partnershop] = shop_block
 
+        # ✅ เขียน Firestore แค่ครั้งเดียว
         call_rider_ref.set(call_rider_data)
 
         # ------------------------------------------------
@@ -960,6 +952,7 @@ def confirm_order():
     except Exception as e:
         traceback.print_exc()
         return jsonify({"success": False, "error": str(e)}), 500
+
 
 
 
