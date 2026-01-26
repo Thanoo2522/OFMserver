@@ -535,7 +535,7 @@ def get_delivery_user():
         # ofm/{nameOfm}/delivery_users/{deluserName}
         # -------------------------------
         doc_ref = (
-            db.collection("ofm")
+            db.collection("OFM_name")
               .document(nameOfm)
               .collection("delivery")
               .document(deluserName)
