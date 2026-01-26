@@ -643,7 +643,7 @@ def get_rider_orders():
             return jsonify({"error": "missing params"}), 400
 
         orders_ref = (
-            db.collection("FM_name")
+            db.collection("OFM_name")
               .document(ofmname)
               .collection("delivery")
               .document(delname)
@@ -652,192 +652,69 @@ def get_rider_orders():
               .where("del_nameservice", "==", delname)
         )
 
-        docs = orders_ref.stream()
+        docs = list(orders_ref.stream())
         results = []
 
         for doc in docs:
             data = doc.to_dict()
 
-            # ----------------------------
-            # 1) ดึง customer ตาม username
-            # ----------------------------
+            # ---------- customer ----------
             username = data.get("username", "")
-            customer_info = {}
+            customer = {}
 
             if username:
-                cust_ref = (
-                    db.collection("FM_name")
+                cust_doc = (
+                    db.collection("OFM_name")
                       .document(ofmname)
                       .collection("customers")
                       .document(username)
+                      .get()
                 )
-
-                cust_doc = cust_ref.get()
                 if cust_doc.exists:
-                    cust = cust_doc.to_dict()
-                    customer_info = {
-                        "name": cust.get("name", ""),
-                        "phone": cust.get("phone", ""),
-                        "address": cust.get("address", "")
+                    c = cust_doc.to_dict()
+                    customer = {
+                        "name": c.get("name", ""),
+                        "phone": c.get("phone", ""),
+                        "address": c.get("address", "")
                     }
 
-            # ----------------------------
-            # 2) ดึงรายการสินค้า
-            # ----------------------------
+            # ---------- items ----------
             items = []
             total_price = 0
             serial = 1
 
-            for it in data.get("items", []):
-                number = it.get("numberproduct", 1)
-                price = it.get("priceproduct", 0)
+            for k, v in data.items():
+                if isinstance(v, dict) and "productname" in v:
+                    qty = v.get("numberproduct", 1)
+                    price = v.get("priceproduct", 0)
 
-                items.append({
-                    "serial_order": serial,
-                    "productname": it.get("productname", ""),
-                    "numberproduct": number,
-                    "priceproduct": price,
-                    "ProductDetail": it.get("ProductDetail", ""),
-                    "image_url": it.get("image_url", "")
-                })
+                    items.append({
+                        "serial_order": serial,
+                        "productname": v.get("productname"),
+                        "numberproduct": qty,
+                        "priceproduct": price,
+                        "ProductDetail": v.get("ProductDetail", ""),
+                        "image_url": v.get("image_url", "")
+                    })
 
-                total_price += number * price
-                serial += 1
+                    total_price += qty * price
+                    serial += 1
 
-            # ----------------------------
-            # 3) pack order
-            # ----------------------------
             results.append({
                 "orderId": doc.id,
                 "status": data.get("status"),
                 "username": username,
-                "customer": customer_info,
+                "customer": customer,
                 "pricedelivery": data.get("pricedelivery", 0),
                 "total_price": total_price,
                 "items": items
             })
 
-        return jsonify({
-            "orders": results
-        }), 200
+        return jsonify({"orders": results}), 200
 
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
-
-
-
-
-   
-#----------------------------------
-@app.route("/get_partner_orders", methods=["GET"])
-def get_partner_orders():
-    try:
-        ofmname = request.args.get("ofmname")
-        partnershop = request.args.get("partnershop")
-
-        if not ofmname or not partnershop:
-            return jsonify({"error": "missing params"}), 400
-
-        docs = (
-            db.collection_group("orders")
-              .where("nameOfm", "==", ofmname)
-              .where("partnershop", "==", partnershop)
-              .order_by("createdAt")
-              .limit(50)
-              .stream()
-        )
-
-        results = []
-        customer_cache = {}
-
-        for d in docs:
-            o = d.to_dict() or {}
-            user_name = o.get("userName", "")
-
-            # ------------------------------------------------
-            # 🔹 customer info (cache)
-            # ------------------------------------------------
-            if user_name:
-                if user_name not in customer_cache:
-                    customer_ref = (
-                        db.collection("OFM_name")
-                          .document(ofmname)
-                          .collection("customers")
-                          .document(user_name)
-                    )
-                    doc_cus = customer_ref.get()
-                    customer_cache[user_name] = doc_cus.to_dict() if doc_cus.exists else {}
-
-                customer_data = customer_cache[user_name]
-            else:
-                customer_data = {}
-
-            # ------------------------------------------------
-            # 🔹 items (🔥 รองรับ MAP + ARRAY)
-            # ------------------------------------------------
-            raw_items = o.get("items", {})
-
-            items = []
-            total_price = 0
-            i = 1
-
-            # ✅ CASE 1: items เป็น MAP (ของใหม่)
-            if isinstance(raw_items, dict):
-                # เรียงตาม itemId หรือจะไม่เรียงก็ได้
-                for itemId, item in raw_items.items():
-                    price = item.get("priceproduct", 0)
-                    qty   = item.get("numberproduct", 0)
-
-                    item["itemId"] = itemId
-                    item["serial_order"] = i
-                    item["TotalPrice"] = price * qty
-
-                    total_price += item["TotalPrice"]
-                    items.append(item)
-                    i += 1
-
-            # ✅ CASE 2: items เป็น ARRAY (ของเก่า)
-            elif isinstance(raw_items, list):
-                for item in raw_items:
-                    price = item.get("priceproduct", 0)
-                    qty   = item.get("numberproduct", 0)
-
-                    item["serial_order"] = i
-                    item["TotalPrice"] = price * qty
-
-                    total_price += item["TotalPrice"]
-                    items.append(item)
-                    i += 1
-
-            else:
-                continue
-
-            # ------------------------------------------------
-            # 🔹 response ต่อ order
-            # ------------------------------------------------
-            results.append({
-                "orderId": d.id,
-                "createdAt": o.get("createdAt"),
-                "userName": user_name,
-                "del_nameservice": o.get("del_nameservice", ""),
-
-                "customer": {
-                    "username": customer_data.get("username", user_name),
-                    "phone": customer_data.get("phone", ""),
-                    "address": customer_data.get("address", "")
-                },
-
-                # 🔥 MAUI จะเห็นเป็น List เหมือนเดิม
-                "items": items,
-                "total_price": total_price
-            })
-
-        return jsonify(results), 200
-
-    except Exception as e:
-        print("ERROR get_partner_orders:", e)
-        return jsonify({"error": str(e)}), 500
 
 
 
