@@ -890,6 +890,7 @@ def confirm_order():
                       "orderId": orderId,
                       "nameOfm": nameOfm,
                       "userName": userName,
+                      "del_nameservice": del_nameservice,               
                       "partnershop": partnershop,
                       "items": items,
                       "read": False,
