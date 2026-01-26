@@ -632,6 +632,72 @@ def update_item_status():
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
+#-------------------------------------------------------------
+from flask import Flask, request, jsonify
+from google.cloud import firestore
+
+app = Flask(__name__)
+db = firestore.Client()
+
+@app.route("/get_rider_orders", methods=["GET"])
+def get_rider_orders():
+    try:
+        ofmname = request.args.get("ofmname")
+        delname = request.args.get("delname")
+
+        if not ofmname or not delname:
+            return jsonify({"error": "missing params"}), 400
+
+        orders_ref = (
+            db.collection("OFM_name")
+              .document(ofmname)
+              .collection("delivery")
+              .document(delname)
+              .collection("orders")
+              .where("status", "==", "available")
+              .where("del_nameservice", "==", delname)
+        )
+
+        docs = orders_ref.stream()
+        results = []
+
+        for doc in docs:
+            data = doc.to_dict()
+
+            items = []
+            total_price = 0
+            serial = 1
+
+            # 🔥 loop เอาเฉพาะ field ที่เป็นสินค้า (map)
+            for key, val in data.items():
+                if isinstance(val, dict) and "productname" in val:
+                    item = {
+                        "serial_order": serial,
+                        "productname": val.get("productname"),
+                        "numberproduct": val.get("numberproduct", 1),
+                        "priceproduct": val.get("priceproduct", 0),
+                        "ProductDetail": val.get("ProductDetail", ""),
+                        "image_url": val.get("image_url", "")
+                    }
+
+                    total_price += item["numberproduct"] * item["priceproduct"]
+                    items.append(item)
+                    serial += 1
+
+            results.append({
+                "orderId": data.get("orderId", doc.id),
+                "status": data.get("status"),
+                "del_nameservice": data.get("del_nameservice"),
+                "username": data.get("username"),
+                "pricedelivery": data.get("pricedelivery", 0),
+                "total_price": total_price,
+                "items": items
+            })
+
+        return jsonify(results), 200
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
    
 #----------------------------------
