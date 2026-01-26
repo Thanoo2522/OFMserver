@@ -649,13 +649,11 @@ def get_rider_orders():
               .document(delname)
               .collection("orders")
               .where("status", "==", "available")
-              .where("del_nameservice", "==", delname)
         )
 
-        docs = list(orders_ref.stream())
         results = []
 
-        for doc in docs:
+        for doc in orders_ref.stream():
             data = doc.to_dict()
 
             # ---------- customer ----------
@@ -673,28 +671,37 @@ def get_rider_orders():
                 if cust_doc.exists:
                     c = cust_doc.to_dict()
                     customer = {
-                        "name": c.get("name", ""),
+                        "name": c.get("username", ""),
                         "phone": c.get("phone", ""),
                         "address": c.get("address", "")
                     }
 
-            # ---------- items ----------
+            # ---------- items (FIXED) ----------
             items = []
             total_price = 0
             serial = 1
 
-            for k, v in data.items():
-                if isinstance(v, dict) and "productname" in v:
-                    qty = v.get("numberproduct", 1)
-                    price = v.get("priceproduct", 0)
+            for shop_name, shop_data in data.items():
+                if not isinstance(shop_data, dict):
+                    continue
+
+                for _, product in shop_data.items():
+                    if not isinstance(product, dict):
+                        continue
+                    if "productname" not in product:
+                        continue
+
+                    qty = product.get("numberproduct", 1)
+                    price = product.get("priceproduct", 0)
 
                     items.append({
                         "serial_order": serial,
-                        "productname": v.get("productname"),
-                        "numberproduct": qty,
-                        "priceproduct": price,
-                        "ProductDetail": v.get("ProductDetail", ""),
-                        "image_url": v.get("image_url", "")
+                        "shop": shop_name,
+                        "productname": product.get("productname", ""),
+                        "numberproduct":product.get("numberproduct", ""),
+                        "priceproduct":  product.get("priceproduct", ""), 
+                        "ProductDetail": product.get("ProductDetail", ""),
+                        "image_url": product.get("image_url", "")
                     })
 
                     total_price += qty * price
@@ -702,7 +709,7 @@ def get_rider_orders():
 
             results.append({
                 "orderId": doc.id,
-                "status": data.get("status"),
+                "status": data.get("status", ""),
                 "username": username,
                 "customer": customer,
                 "pricedelivery": data.get("pricedelivery", 0),
@@ -714,6 +721,7 @@ def get_rider_orders():
 
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+
 
 
 
