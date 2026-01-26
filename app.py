@@ -594,13 +594,13 @@ def update_item_status():
         # ===============================
         # 3️⃣ update item status (MAP)
         # ===============================
-        update_fields = {}
+       # update_fields = {}
 
-        for item_id in item_ids:
-            update_fields[f"items.{item_id}.status"] = "confirmed"
+       # for item_id in item_ids:
+       #     update_fields[f"items.{item_id}.status"] = "confirmed"
 
-        if update_fields:
-            notify_ref.update(update_fields)
+       # if update_fields:
+       #     notify_ref.update(update_fields)
 
         # ===============================
         # 4️⃣ update delivery order shop status -> ready
@@ -616,7 +616,7 @@ def update_item_status():
 
         # 🔥 เปลี่ยน status ระดับร้าน
         delivery_order_ref.update({
-            f"{partnershop}.status": "ready"
+            f"{partnershop}.order": "ready"
         })
 
         # ===============================
@@ -957,7 +957,7 @@ def confirm_order():
                     "ProductDetail": item.get("ProductDetail", ""),
                     "priceproduct": price,
                     "numberproduct": qty,
-                    "prefare": "available"
+                    #"prefare": "available"
                 }
 
             shop_block["totalprice"] = shop_total
