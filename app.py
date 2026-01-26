@@ -557,13 +557,12 @@ def update_item_status():
     try:
         data = request.get_json(force=True)
 
-        ofmname     = data.get("ofmname")
-        partnershop = data.get("partnershop")
-        order_id    = data.get("orderId")
-        riderservice = data.get("namerider")
+        ofmname       = data.get("ofmname")
+        partnershop   = data.get("partnershop")
+        order_id      = data.get("orderId")
+        riderservice  = data.get("namerider")
 
-        # 🔥 ตอนนี้ itemIds = itemId จริง (string)
-        item_ids    = data.get("itemIds", [])  # ["itemA123", "itemB456"]
+        item_ids = data.get("itemIds", [])
 
         if not ofmname or not partnershop or not order_id:
             return jsonify({"error": "missing params"}), 400
@@ -598,16 +597,13 @@ def update_item_status():
         update_fields = {}
 
         for item_id in item_ids:
-            # 🔥 item_id คือ key ใน map (itemId จริง)
-             update_fields[f"items.{item_id}.status"] = "confirmed"
-             # update_fields[f"items.{item_id}.read"] = True
+            update_fields[f"items.{item_id}.status"] = "confirmed"
 
         if update_fields:
             notify_ref.update(update_fields)
 
-
-                         # ===============================
-        # 4️⃣ update delivery order item prefare -> ready
+        # ===============================
+        # 4️⃣ update delivery order shop status -> ready
         # ===============================
         delivery_order_ref = (
             db.collection("OFM_name")
@@ -618,16 +614,14 @@ def update_item_status():
               .document(order_id)
         )
 
-        delivery_update = {}
+        # 🔥 เปลี่ยน status ระดับร้าน
+        delivery_order_ref.update({
+            f"{partnershop}.status": "ready"
+        })
 
-        for item_id in item_ids:
-            # path: {partnershop}/{itemID}/prefare
-            delivery_update[f"{partnershop}.{item_id}.prefare"] = "ready"
-
-        if delivery_update:
-            delivery_order_ref.update(delivery_update)
-   
-
+        # ===============================
+        # 5️⃣ response (เดิม ห้ามเปลี่ยน)
+        # ===============================
         return jsonify({
             "success": True,
             "orderId": order_id,
@@ -635,9 +629,9 @@ def update_item_status():
             "read": True
         }), 200
 
-
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+
 
    
 #----------------------------------
