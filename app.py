@@ -642,9 +642,6 @@ def get_rider_orders():
         if not ofmname or not delname:
             return jsonify({"error": "missing params"}), 400
 
-        # ===============================
-        # 1️⃣ ดึง Orders ของ Rider
-        # ===============================
         orders_ref = (
             db.collection("OFM_name")
               .document(ofmname)
@@ -655,86 +652,74 @@ def get_rider_orders():
               .where("del_nameservice", "==", delname)
         )
 
-        docs = list(orders_ref.stream())
-        if not docs:
-            return jsonify({
-                "customer": {},
-                "orders": []
-            }), 200
-
         results = []
-        username = None   # 🔑 เก็บ username จาก order
 
-        for doc in docs:
+        for doc in orders_ref.stream():
             data = doc.to_dict()
+            username = data.get("username")
 
-            # ดึง username ครั้งแรก
-            if not username:
-                username = data.get("username")
+            # -----------------------------
+            # 🔹 ดึง customer ตาม username ของ order นี้
+            # -----------------------------
+            customer_info = {}
+            if username:
+                cust_ref = (
+                    db.collection("FM_name")
+                      .document(ofmname)
+                      .collection("customers")
+                      .document(username)
+                )
 
+                cust_doc = cust_ref.get()
+                if cust_doc.exists:
+                    cust = cust_doc.to_dict()
+                    customer_info = {
+                        "name": cust.get("name", ""),
+                        "phone": cust.get("phone", ""),
+                        "address": cust.get("address", "")
+                    }
+
+            # -----------------------------
+            # 🔹 ดึงสินค้า
+            # -----------------------------
             items = []
             total_price = 0
             serial = 1
 
-            # 🔥 loop เฉพาะสินค้า
             for key, val in data.items():
                 if isinstance(val, dict) and "productname" in val:
-                    qty = val.get("numberproduct", 1)
+                    number = val.get("numberproduct", 1)
                     price = val.get("priceproduct", 0)
 
                     items.append({
                         "serial_order": serial,
                         "productname": val.get("productname"),
-                        "numberproduct": qty,
+                        "numberproduct": number,
                         "priceproduct": price,
                         "ProductDetail": val.get("ProductDetail", ""),
                         "image_url": val.get("image_url", "")
                     })
 
-                    total_price += qty * price
+                    total_price += number * price
                     serial += 1
 
             results.append({
                 "orderId": doc.id,
                 "status": data.get("status"),
-                "username": data.get("username"),
+                "username": username,
+                "customer": customer_info,   # ✅ ผูกกับ order
                 "pricedelivery": data.get("pricedelivery", 0),
                 "total_price": total_price,
                 "items": items
             })
 
-        # ===============================
-        # 2️⃣ ดึง Customer จาก username
-        # ===============================
-        customer_info = {}
-
-        if username:
-            cust_ref = (
-                db.collection("FM_name")
-                  .document(ofmname)
-                  .collection("customers")
-                  .document(username)
-            )
-
-            cust_doc = cust_ref.get()
-            if cust_doc.exists:
-                cust = cust_doc.to_dict()
-                customer_info = {
-                    "name": cust.get("name", ""),
-                    "phone": cust.get("phone", ""),
-                    "address": cust.get("address", "")
-                }
-
-        # ===============================
-        # 3️⃣ ส่งกลับครั้งเดียว
-        # ===============================
         return jsonify({
-            "customer": customer_info,
             "orders": results
         }), 200
 
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+
 
 
 
