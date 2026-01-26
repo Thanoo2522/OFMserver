@@ -641,7 +641,7 @@ def get_rider_orders():
                         "numberproduct": qty,
                         "priceproduct": price,
                         "ProductDetail": product.get("ProductDetail", ""),
-                        "image_url": product.get("image_url", "")
+                        "image_url": product.get("imageurl", "")
                     })
 
                     total_price += qty * price
