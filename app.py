@@ -514,125 +514,6 @@ def update_delivery_price():
         return jsonify({"error": str(e)}), 500
 
 #--------------------------------------
-@app.route("/get_delivery_user", methods=["GET"])
-def get_delivery_user():
-    try:
-        nameOfm = request.args.get("nameOfm")
-        deluserName = request.args.get("deluserName")
-
-        if not nameOfm or not deluserName:
-            return jsonify({"error": "missing params"}), 400
-
-        # 🔹 path: OFM_name/{nameOfm}/delivery/{deluserName}
-        del_ref = (
-            db.collection("OFM_name")
-              .document(nameOfm)
-              .collection("delivery")
-              .document(deluserName)
-        )
-
-        del_doc = del_ref.get()
-        if not del_doc.exists:
-            return jsonify({"error": "delivery user not found"}), 404
-
-        data = del_doc.to_dict() or {}
-
-        return jsonify({
-            "success": True,
-            "delivery": {
-                "name": data.get("del_name", ""),
-                "phone": data.get("phone", ""),
-                "address": data.get("address", ""),
-                "pricedelivery": data.get("pricedelivery", 0)
-            }
-        }), 200
-
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
-
-
-#----------------------------------
-@app.route("/update_item_status", methods=["POST"])
-def update_item_status():
-    try:
-        data = request.get_json(force=True)
-
-        ofmname       = data.get("ofmname")
-        partnershop   = data.get("partnershop")
-        order_id      = data.get("orderId")
-        riderservice  = data.get("namerider")
-
-        item_ids = data.get("itemIds", [])
-
-        if not ofmname or not partnershop or not order_id:
-            return jsonify({"error": "missing params"}), 400
-
-        if not item_ids:
-            return jsonify({"error": "no itemIds"}), 400
-
-        # ===============================
-        # 1️⃣ reference notification order
-        # ===============================
-        notify_ref = (
-            db.collection("OFM_name")
-              .document(ofmname)
-              .collection("partner")
-              .document(partnershop)
-              .collection("system")
-              .document("notification")
-              .collection("orders")
-              .document(order_id)
-        )
-
-        # ===============================
-        # 2️⃣ mark order read
-        # ===============================
-        notify_ref.update({
-            "read": True
-        })
-
-        # ===============================
-        # 3️⃣ update item status (MAP)
-        # ===============================
-       # update_fields = {}
-
-       # for item_id in item_ids:
-       #     update_fields[f"items.{item_id}.status"] = "confirmed"
-
-       # if update_fields:
-       #     notify_ref.update(update_fields)
-
-        # ===============================
-        # 4️⃣ update delivery order shop status -> ready
-        # ===============================
-        delivery_order_ref = (
-            db.collection("OFM_name")
-              .document(ofmname)
-              .collection("delivery")
-              .document(riderservice)
-              .collection("orders")
-              .document(order_id)
-        )
-
-        # 🔥 เปลี่ยน status ระดับร้าน
-        delivery_order_ref.update({
-            f"{partnershop}.order": "ready"
-        })
-
-        # ===============================
-        # 5️⃣ response (เดิม ห้ามเปลี่ยน)
-        # ===============================
-        return jsonify({
-            "success": True,
-            "orderId": order_id,
-            "updatedItems": item_ids,
-            "read": True
-        }), 200
-
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
-
-#-------------------------------------------------------------
 @app.route("/get_rider_orders", methods=["GET"])
 def get_rider_orders():
     try:
@@ -671,12 +552,12 @@ def get_rider_orders():
                 if cust_doc.exists:
                     c = cust_doc.to_dict()
                     customer = {
-                        "name": c.get("username", ""),
+                        "name": c.get("name", c.get("username", "")),
                         "phone": c.get("phone", ""),
                         "address": c.get("address", "")
                     }
 
-            # ---------- items (FIXED) ----------
+            # ---------- items ----------
             items = []
             total_price = 0
             serial = 1
@@ -691,15 +572,15 @@ def get_rider_orders():
                     if "productname" not in product:
                         continue
 
-                    qty = product.get("numberproduct", 1)
-                    price = product.get("priceproduct", 0)
+                    qty = int(product.get("numberproduct", 1))
+                    price = float(product.get("priceproduct", 0))
 
                     items.append({
                         "serial_order": serial,
                         "shop": shop_name,
                         "productname": product.get("productname", ""),
-                        "numberproduct":product.get("numberproduct", ""),
-                        "priceproduct":  product.get("priceproduct", ""), 
+                        "numberproduct": qty,
+                        "priceproduct": price,
                         "ProductDetail": product.get("ProductDetail", ""),
                         "image_url": product.get("image_url", "")
                     })
@@ -721,6 +602,7 @@ def get_rider_orders():
 
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+
 
 
 
