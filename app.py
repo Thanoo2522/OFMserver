@@ -919,7 +919,7 @@ def confirm_order():
             "createdAt": firestore.SERVER_TIMESTAMP
         }
 
-        # ใส่ข้อมูลร้าน + itemID (เฉพาะ itemId)
+        # ใส่ข้อมูลร้าน + itemID (มีรายละเอียด item)
         for partnershop, items in partner_items.items():
             shop_total = 0
             shop_block = {
@@ -931,8 +931,13 @@ def confirm_order():
                 qty   = int(item.get("numberproduct", 1))
                 shop_total += price * qty
 
-                # ✅ เก็บเฉพาะ itemId
-                shop_block[itemId] = True
+                shop_block[itemId] = {
+                    "productname": item.get("productname", ""),
+                    "ProductDetail": item.get("ProductDetail", ""),
+                    "priceproduct": price,
+                    "numberproduct": qty,
+                    "prefare": "available"
+                }
 
             shop_block["totalprice"] = shop_total
             call_rider_data[partnershop] = shop_block
@@ -952,7 +957,6 @@ def confirm_order():
     except Exception as e:
         traceback.print_exc()
         return jsonify({"success": False, "error": str(e)}), 500
-
 
 
 
