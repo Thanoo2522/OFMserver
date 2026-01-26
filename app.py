@@ -642,48 +642,41 @@ def get_rider_orders():
         if not ofmname or not delname:
             return jsonify({"error": "missing params"}), 400
 
-        # -----------------------------
-        # 1️⃣ Rider / Delivery Info
-        # -----------------------------
-        rider_ref = (
+        # ===============================
+        # 1️⃣ ดึง Orders ของ Rider
+        # ===============================
+        orders_ref = (
             db.collection("OFM_name")
               .document(ofmname)
               .collection("delivery")
               .document(delname)
-        )
-
-        rider_doc = rider_ref.get()
-        if not rider_doc.exists:
-            return jsonify({"error": "rider not found"}), 404
-
-        rider_data = rider_doc.to_dict()
-
-        rider_info = {
-            "del_name": rider_data.get("del_name", delname),
-            "phone": rider_data.get("phone", ""),
-            "address": rider_data.get("address", "")
-        }
-
-        # -----------------------------
-        # 2️⃣ Orders
-        # -----------------------------
-        orders_ref = (
-            rider_ref
               .collection("orders")
               .where("status", "==", "available")
               .where("del_nameservice", "==", delname)
         )
 
-        docs = orders_ref.stream()
+        docs = list(orders_ref.stream())
+        if not docs:
+            return jsonify({
+                "customer": {},
+                "orders": []
+            }), 200
+
         results = []
+        username = None   # 🔑 เก็บ username จาก order
 
         for doc in docs:
             data = doc.to_dict()
+
+            # ดึง username ครั้งแรก
+            if not username:
+                username = data.get("username")
 
             items = []
             total_price = 0
             serial = 1
 
+            # 🔥 loop เฉพาะสินค้า
             for key, val in data.items():
                 if isinstance(val, dict) and "productname" in val:
                     qty = val.get("numberproduct", 1)
@@ -702,22 +695,48 @@ def get_rider_orders():
                     serial += 1
 
             results.append({
-                "orderId": data.get("orderId", doc.id),
+                "orderId": doc.id,
                 "status": data.get("status"),
                 "username": data.get("username"),
-                "del_nameservice": data.get("del_nameservice"),
                 "pricedelivery": data.get("pricedelivery", 0),
                 "total_price": total_price,
                 "items": items
             })
 
+        # ===============================
+        # 2️⃣ ดึง Customer จาก username
+        # ===============================
+        customer_info = {}
+
+        if username:
+            cust_ref = (
+                db.collection("FM_name")
+                  .document(ofmname)
+                  .collection("customers")
+                  .document(username)
+            )
+
+            cust_doc = cust_ref.get()
+            if cust_doc.exists:
+                cust = cust_doc.to_dict()
+                customer_info = {
+                    "name": cust.get("name", ""),
+                    "phone": cust.get("phone", ""),
+                    "address": cust.get("address", "")
+                }
+
+        # ===============================
+        # 3️⃣ ส่งกลับครั้งเดียว
+        # ===============================
         return jsonify({
-            "rider": rider_info,
+            "customer": customer_info,
             "orders": results
         }), 200
 
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+
+
 
    
 #----------------------------------
