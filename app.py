@@ -513,42 +513,64 @@ def update_delivery_price():
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
-#------------------------------------------
+#------------------------------------------ /OFM_name/ตลาดสดมารวย/delivery/gorider
 @app.route("/get_delivery_user", methods=["GET"])
 def get_delivery_user():
     try:
-        ofmname = request.args.get("ofmname")
-        delname = request.args.get("delname")
+        # -------------------------------
+        # 1) รับ query params
+        # -------------------------------
+        nameOfm = request.args.get("nameOfm")
+        deluserName = request.args.get("deluserName")
 
-        if not ofmname or not delname:
-            return jsonify({"error": "missing params"}), 400
+        if not nameOfm or not deluserName:
+            return jsonify({
+                "success": False,
+                "error": "missing params"
+            }), 400
 
-        rider_ref = (
-            db.collection("OFM_name")
-              .document(ofmname)
+        # -------------------------------
+        # 2) ดึงข้อมูล rider จาก Firestore
+        # path ตัวอย่าง:
+        # ofm/{nameOfm}/delivery_users/{deluserName}
+        # -------------------------------
+        doc_ref = (
+            db.collection("ofm")
+              .document(nameOfm)
               .collection("delivery")
-              .document(delname)
+              .document(deluserName)
         )
 
-        rider_doc = rider_ref.get()
+        doc = doc_ref.get()
 
-        if not rider_doc.exists:
-            return jsonify({"error": "delivery user not found"}), 404
+        if not doc.exists:
+            return jsonify({
+                "success": False,
+                "error": "delivery user not found"
+            }), 404
 
-        data = rider_doc.to_dict()
+        data = doc.to_dict()
 
-        result = {
-            "del_name": delname,
-            "name": data.get("name", ""),
-            "phone": data.get("phone", ""),
-            "address": data.get("address", ""),
-            "status": data.get("status", "active")
-        }
-
-        return jsonify(result), 200
+        # -------------------------------
+        # 3) ส่งข้อมูลกลับ (จัด field ให้ตรง MAUI)
+        # -------------------------------
+        return jsonify({
+            "success": True,
+            "delivery": {
+                "del_name": deluserName,
+                "phone": data.get("phone", ""),
+                "address": data.get("address", ""),
+                "pricedelivery": data.get("pricedelivery", 0),
+                "status": data.get("status", "active")
+            }
+        })
 
     except Exception as e:
-        return jsonify({"error": str(e)}), 500
+        return jsonify({
+            "success": False,
+            "error": str(e)
+        }), 500
+
 
 #--------------------------------------
 @app.route("/get_rider_orders", methods=["GET"])
