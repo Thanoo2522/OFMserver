@@ -571,6 +571,70 @@ def get_delivery_user():
             "error": str(e)
         }), 500
 #----------------------------------
+# @app.route("/update_item_status", methods=["POST"])
+def update_item_status():
+    try:
+        data = request.get_json(force=True)
+
+        ofmname     = data.get("ofmname")
+        partnershop = data.get("partnershop")
+        order_id    = data.get("orderId")
+
+        # 🔥 ตอนนี้ itemIds = itemId จริง (string)
+        item_ids    = data.get("itemIds", [])  # ["itemA123", "itemB456"]
+
+        if not ofmname or not partnershop or not order_id:
+            return jsonify({"error": "missing params"}), 400
+
+        if not item_ids:
+            return jsonify({"error": "no itemIds"}), 400
+
+        # ===============================
+        # 1️⃣ reference notification order
+        # ===============================
+        notify_ref = (
+            db.collection("OFM_name")
+              .document(ofmname)
+              .collection("partner")
+              .document(partnershop)
+              .collection("system")
+              .document("notification")
+              .collection("orders")
+              .document(order_id)
+        )
+
+        # ===============================
+        # 2️⃣ mark order read
+        # ===============================
+        notify_ref.update({
+            "read": True
+        })
+
+        # ===============================
+        # 3️⃣ update item status (MAP)
+        # ===============================
+        update_fields = {}
+
+        for item_id in item_ids:
+            # 🔥 item_id คือ key ใน map (itemId จริง)
+             update_fields[f"items.{item_id}.status"] = "confirmed"
+             # update_fields[f"items.{item_id}.read"] = True
+
+        if update_fields:
+            notify_ref.update(update_fields)
+
+        return jsonify({
+            "success": True,
+            "orderId": order_id,
+            "updatedItems": item_ids,
+            "read": True
+        }), 200
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+       
+#----------------------------------
 @app.route("/get_partner_orders", methods=["GET"])
 def get_partner_orders():
     try:
