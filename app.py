@@ -578,15 +578,11 @@ def update_item_status():
 
         ofmname     = data.get("ofmname")
         partnershop = data.get("partnershop")
-        order_id = str(data.get("orderId"))
-        #   = data.get("itemIds", [])
+        order_id    = str(data.get("orderId"))
         namerider   = data.get("namerider")
 
-        if not ofmname or not partnershop or not order_id:
+        if not ofmname or not partnershop or not order_id or not namerider:
             return jsonify({"error": "missing params"}), 400
-
-       # if not item_ids:
-          #  return jsonify({"error": "no itemIds"}), 400
 
         # ===============================
         # 1️⃣ reference notification order (เดิม)
@@ -602,16 +598,13 @@ def update_item_status():
               .document(order_id)
         )
 
-        # ===============================
-        # 2️⃣ mark order read (เดิม)
-        # ===============================
         notify_ref.update({
             "read": True
         })
 
-        # ==================================================
-        # 3️⃣ 🔥 เพิ่มใหม่: update delivery order status
-        # ==================================================
+        # ===============================
+        # 2️⃣ update delivery order status
+        # ===============================
         delivery_order_ref = (
             db.collection("OFM_name")
               .document(ofmname)
@@ -621,10 +614,10 @@ def update_item_status():
               .document(order_id)
         )
 
-        delivery_order_ref.set({
-            "status": "ready"
-            }, merge=True)
-
+        # 🔥 update nested field: {partnershop}.order
+        delivery_order_ref.update({
+            f"{partnershop}.order": "ready"
+        })
 
         return jsonify({
             "success": True,
@@ -633,7 +626,9 @@ def update_item_status():
         }), 200
 
     except Exception as e:
+        print("🔥 update_item_status error:", e)
         return jsonify({"error": str(e)}), 500
+
 
        
 #----------------------------------
