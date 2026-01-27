@@ -571,7 +571,7 @@ def get_delivery_user():
             "error": str(e)
         }), 500
 #----------------------------------
-# @app.route("/update_item_status", methods=["POST"])
+@app.route("/update_item_status", methods=["POST"])
 def update_item_status():
     try:
         data = request.get_json(force=True)
@@ -579,9 +579,8 @@ def update_item_status():
         ofmname     = data.get("ofmname")
         partnershop = data.get("partnershop")
         order_id    = data.get("orderId")
-
-        # 🔥 ตอนนี้ itemIds = itemId จริง (string)
-        item_ids    = data.get("itemIds", [])  # ["itemA123", "itemB456"]
+        item_ids    = data.get("itemIds", [])
+        namerider   = data.get("namerider")
 
         if not ofmname or not partnershop or not order_id:
             return jsonify({"error": "missing params"}), 400
@@ -590,7 +589,7 @@ def update_item_status():
             return jsonify({"error": "no itemIds"}), 400
 
         # ===============================
-        # 1️⃣ reference notification order
+        # 1️⃣ reference notification order (เดิม)
         # ===============================
         notify_ref = (
             db.collection("OFM_name")
@@ -604,30 +603,32 @@ def update_item_status():
         )
 
         # ===============================
-        # 2️⃣ mark order read
+        # 2️⃣ mark order read (เดิม)
         # ===============================
         notify_ref.update({
             "read": True
         })
 
-        # ===============================
-        # 3️⃣ update item status (MAP)
-        # ===============================
-        update_fields = {}
+        # ==================================================
+        # 3️⃣ 🔥 เพิ่มใหม่: update delivery order status
+        # ==================================================
+        delivery_order_ref = (
+            db.collection("OFM_name")
+              .document(ofmname)
+              .collection("delivery")
+              .document(namerider)
+              .collection("orders")
+              .document(order_id)
+        )
 
-        for item_id in item_ids:
-            # 🔥 item_id คือ key ใน map (itemId จริง)
-             update_fields[f"items.{item_id}.status"] = "confirmed"
-             # update_fields[f"items.{item_id}.read"] = True
-
-        if update_fields:
-            notify_ref.update(update_fields)
+        delivery_order_ref.set({
+            "status": "ready"
+        }, merge=True)
 
         return jsonify({
             "success": True,
             "orderId": order_id,
-            "updatedItems": item_ids,
-            "read": True
+            "updatedStatus": "ready"
         }), 200
 
     except Exception as e:
