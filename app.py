@@ -741,7 +741,61 @@ def get_partner_orders():
         print("ERROR get_partner_orders:", e)
         return jsonify({"error": str(e)}), 500
 
+#--------------------------------------------
+@app.route("/complete_delivery_order", methods=["POST"])
+def complete_delivery_order():
+    try:
+        data = request.get_json(force=True)
 
+        nameOfm     = data.get("ofmname")
+        deluserName = data.get("deluserName")
+        orderId     = data.get("orderId")
+
+        # -------------------------------
+        # validate
+        # -------------------------------
+        if not nameOfm or not deluserName or not orderId:
+            return jsonify({
+                "success": False,
+                "error": "missing params"
+            }), 400
+
+        # -------------------------------
+        # firestore path
+        # -------------------------------
+        order_ref = (
+            db.collection("OFM_name")
+              .document(nameOfm)
+              .collection("delivery")
+              .document(deluserName)
+              .collection("orders")
+              .document(orderId)
+        )
+
+        snap = order_ref.get()
+        if not snap.exists:
+            return jsonify({
+                "success": False,
+                "error": "order not found"
+            }), 404
+
+        # -------------------------------
+        # update status
+        # -------------------------------
+        order_ref.update({
+            "status": "completed"
+        })
+
+        return jsonify({
+            "success": True,
+            "message": "order completed"
+        })
+
+    except Exception as e:
+        return jsonify({
+            "success": False,
+            "error": str(e)
+        }), 500
 #--------------------------------------
 @app.route("/get_rider_orders", methods=["GET"])
 def get_rider_orders():
