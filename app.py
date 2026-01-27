@@ -570,6 +570,114 @@ def get_delivery_user():
             "success": False,
             "error": str(e)
         }), 500
+#----------------------------------
+@app.route("/get_partner_orders", methods=["GET"])
+def get_partner_orders():
+    try:
+        ofmname = request.args.get("ofmname")
+        partnershop = request.args.get("partnershop")
+
+        if not ofmname or not partnershop:
+            return jsonify({"error": "missing params"}), 400
+
+        docs = (
+            db.collection_group("orders")
+              .where("nameOfm", "==", ofmname)
+              .where("partnershop", "==", partnershop)
+              .order_by("createdAt")
+              .limit(50)
+              .stream()
+        )
+
+        results = []
+        customer_cache = {}
+
+        for d in docs:
+            o = d.to_dict() or {}
+            user_name = o.get("userName", "")
+
+            # ------------------------------------------------
+            # 🔹 customer info (cache)
+            # ------------------------------------------------
+            if user_name:
+                if user_name not in customer_cache:
+                    customer_ref = (
+                        db.collection("OFM_name")
+                          .document(ofmname)
+                          .collection("customers")
+                          .document(user_name)
+                    )
+                    doc_cus = customer_ref.get()
+                    customer_cache[user_name] = doc_cus.to_dict() if doc_cus.exists else {}
+
+                customer_data = customer_cache[user_name]
+            else:
+                customer_data = {}
+
+            # ------------------------------------------------
+            # 🔹 items (🔥 รองรับ MAP + ARRAY)
+            # ------------------------------------------------
+            raw_items = o.get("items", {})
+
+            items = []
+            total_price = 0
+            i = 1
+
+            # ✅ CASE 1: items เป็น MAP (ของใหม่)
+            if isinstance(raw_items, dict):
+                # เรียงตาม itemId หรือจะไม่เรียงก็ได้
+                for itemId, item in raw_items.items():
+                    price = item.get("priceproduct", 0)
+                    qty   = item.get("numberproduct", 0)
+
+                    item["itemId"] = itemId
+                    item["serial_order"] = i
+                    item["TotalPrice"] = price * qty
+
+                    total_price += item["TotalPrice"]
+                    items.append(item)
+                    i += 1
+
+            # ✅ CASE 2: items เป็น ARRAY (ของเก่า)
+            elif isinstance(raw_items, list):
+                for item in raw_items:
+                    price = item.get("priceproduct", 0)
+                    qty   = item.get("numberproduct", 0)
+
+                    item["serial_order"] = i
+                    item["TotalPrice"] = price * qty
+
+                    total_price += item["TotalPrice"]
+                    items.append(item)
+                    i += 1
+
+            else:
+                continue
+
+            # ------------------------------------------------
+            # 🔹 response ต่อ order
+            # ------------------------------------------------
+            results.append({
+                "orderId": d.id,
+                "createdAt": o.get("createdAt"),
+                "userName": user_name,
+
+                "customer": {
+                    "username": customer_data.get("username", user_name),
+                    "phone": customer_data.get("phone", ""),
+                    "address": customer_data.get("address", "")
+                },
+
+                # 🔥 MAUI จะเห็นเป็น List เหมือนเดิม
+                "items": items,
+                "total_price": total_price
+            })
+
+        return jsonify(results), 200
+
+    except Exception as e:
+        print("ERROR get_partner_orders:", e)
+        return jsonify({"error": str(e)}), 500
 
 
 #--------------------------------------
