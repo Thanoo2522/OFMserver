@@ -721,6 +721,7 @@ def get_partner_orders():
             results.append({
                 "orderId": d.id,
                 "createdAt": o.get("createdAt"),
+                "del_nameservice": o.get("del_nameservice", ""), #ส่งชื่อ riderไปด้วย
                 "userName": user_name,
 
                 "customer": {
