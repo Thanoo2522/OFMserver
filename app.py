@@ -1052,7 +1052,13 @@ def confirm_order():
                     "ProductDetail": item.get("ProductDetail", ""),
                     "priceproduct": price,
                     "numberproduct": qty,
-                    "image_url": item.get("imageurl",""),
+                    "image_url":  (  item.get("imageurl")
+                                      or item.get("image_url")
+                                      or item.get("imageUrl")   
+                                      )
+                                   
+
+
                     #"prefare": "available"
                 }
 
@@ -1388,6 +1394,7 @@ def load_orders():
         result = []
         for d in docs:
             data = d.to_dict() or {}
+
 
             result.append({
                 "itemId": d.id,
