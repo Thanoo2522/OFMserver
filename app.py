@@ -579,14 +579,14 @@ def update_item_status():
         ofmname     = data.get("ofmname")
         partnershop = data.get("partnershop")
         order_id    = data.get("orderId")
-        item_ids    = data.get("itemIds", [])
+        #   = data.get("itemIds", [])
         namerider   = data.get("namerider")
 
         if not ofmname or not partnershop or not order_id:
             return jsonify({"error": "missing params"}), 400
 
-        if not item_ids:
-            return jsonify({"error": "no itemIds"}), 400
+       # if not item_ids:
+          #  return jsonify({"error": "no itemIds"}), 400
 
         # ===============================
         # 1️⃣ reference notification order (เดิม)
@@ -621,9 +621,9 @@ def update_item_status():
               .document(order_id)
         )
 
-        delivery_order_ref.set({
+        delivery_order_ref.update({
             "status": "ready"
-        }, merge=True)
+        })
 
         return jsonify({
             "success": True,
