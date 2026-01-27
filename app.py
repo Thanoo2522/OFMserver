@@ -578,7 +578,7 @@ def update_item_status():
 
         ofmname     = data.get("ofmname")
         partnershop = data.get("partnershop")
-        order_id    = data.get("orderId")
+        order_id = str(data.get("orderId"))
         #   = data.get("itemIds", [])
         namerider   = data.get("namerider")
 
@@ -621,9 +621,10 @@ def update_item_status():
               .document(order_id)
         )
 
-        delivery_order_ref.update({
+        delivery_order_ref.set({
             "status": "ready"
-        })
+            }, merge=True)
+
 
         return jsonify({
             "success": True,
