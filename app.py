@@ -578,7 +578,7 @@ def update_item_status():
 
         ofmname     = data.get("ofmname")
         partnershop = data.get("partnershop")
-        order_id    = str(data.get("orderId"))
+        order_id    = data.get("orderId")
         namerider   = data.get("namerider")
 
         if not ofmname or not partnershop or not order_id or not namerider:
