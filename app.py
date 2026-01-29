@@ -722,6 +722,7 @@ def get_partner_orders():
                 "orderId": d.id,
                 "createdAt": o.get("createdAt"),
                 "del_nameservice": o.get("del_nameservice", ""), #ส่งชื่อ riderไปด้วย
+                 "pricedelivery": o.get("pricedelivery", 0), 
                 "userName": user_name,
 
                 "customer": {
@@ -1061,6 +1062,7 @@ def confirm_order():
                       "userName": userName,
                       "del_nameservice": del_nameservice,               
                       "partnershop": partnershop,
+                      "pricedelivery":pricedelivery,
                       "items": items,
                       "read": False,
                       "createdAt": firestore.SERVER_TIMESTAMP
