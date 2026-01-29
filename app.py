@@ -641,6 +641,9 @@ def get_partner_orders():
         if not ofmname or not partnershop:
             return jsonify({"error": "missing params"}), 400
 
+        # ----------------------------------------
+        # 🔹 query orders
+        # ----------------------------------------
         docs = (
             db.collection_group("orders")
               .where("nameOfm", "==", ofmname)
@@ -652,41 +655,64 @@ def get_partner_orders():
 
         results = []
         customer_cache = {}
+        delivery_cache = {}   # 🔥 cache rider pricedelivery
 
         for d in docs:
             o = d.to_dict() or {}
-            user_name = o.get("userName", "")
 
-            # ------------------------------------------------
+            order_id   = d.id
+            user_name  = o.get("userName", "")
+            rider_name = o.get("del_nameservice", "")  # เช่น gorider
+
+            # ----------------------------------------
             # 🔹 customer info (cache)
-            # ------------------------------------------------
+            # ----------------------------------------
             if user_name:
                 if user_name not in customer_cache:
-                    customer_ref = (
+                    cus_ref = (
                         db.collection("OFM_name")
                           .document(ofmname)
                           .collection("customers")
                           .document(user_name)
                     )
-                    doc_cus = customer_ref.get()
-                    customer_cache[user_name] = doc_cus.to_dict() if doc_cus.exists else {}
+                    cus_doc = cus_ref.get()
+                    customer_cache[user_name] = cus_doc.to_dict() if cus_doc.exists else {}
 
                 customer_data = customer_cache[user_name]
             else:
                 customer_data = {}
 
-            # ------------------------------------------------
-            # 🔹 items (🔥 รองรับ MAP + ARRAY)
-            # ------------------------------------------------
-            raw_items = o.get("items", {})
+            # ----------------------------------------
+            # 🔹 pricedelivery จาก delivery/{rider}
+            # ----------------------------------------
+            pricedelivery = 0
 
+            if rider_name:
+                if rider_name not in delivery_cache:
+                    delivery_ref = (
+                        db.collection("OFM_name")
+                          .document(ofmname)
+                          .collection("delivery")
+                          .document(rider_name)
+                    )
+                    delivery_doc = delivery_ref.get()
+
+                    delivery_cache[rider_name] = (
+                        delivery_doc.to_dict() if delivery_doc.exists else {}
+                    )
+
+                pricedelivery = delivery_cache[rider_name].get("pricedelivery", 0)
+
+            # ----------------------------------------
+            # 🔹 items (รองรับ MAP + ARRAY)
+            # ----------------------------------------
+            raw_items = o.get("items", {})
             items = []
             total_price = 0
             i = 1
 
-            # ✅ CASE 1: items เป็น MAP (ของใหม่)
+            # CASE 1: items เป็น MAP
             if isinstance(raw_items, dict):
-                # เรียงตาม itemId หรือจะไม่เรียงก็ได้
                 for itemId, item in raw_items.items():
                     price = item.get("priceproduct", 0)
                     qty   = item.get("numberproduct", 0)
@@ -699,7 +725,7 @@ def get_partner_orders():
                     items.append(item)
                     i += 1
 
-            # ✅ CASE 2: items เป็น ARRAY (ของเก่า)
+            # CASE 2: items เป็น ARRAY
             elif isinstance(raw_items, list):
                 for item in raw_items:
                     price = item.get("priceproduct", 0)
@@ -712,17 +738,14 @@ def get_partner_orders():
                     items.append(item)
                     i += 1
 
-            else:
-                continue
-
-            # ------------------------------------------------
-            # 🔹 response ต่อ order
-            # ------------------------------------------------
+            # ----------------------------------------
+            # 🔹 response ต่อ 1 order
+            # ----------------------------------------
             results.append({
-                "orderId": d.id,
+                "orderId": order_id,
                 "createdAt": o.get("createdAt"),
-                "del_nameservice": o.get("del_nameservice", ""), #ส่งชื่อ riderไปด้วย
-                 "pricedelivery": o.get("pricedelivery", 0), 
+                "del_nameservice": rider_name,
+                "pricedelivery": pricedelivery,   # 🔥 ตอนนี้จะได้ 20
                 "userName": user_name,
 
                 "customer": {
@@ -731,7 +754,6 @@ def get_partner_orders():
                     "address": customer_data.get("address", "")
                 },
 
-                # 🔥 MAUI จะเห็นเป็น List เหมือนเดิม
                 "items": items,
                 "total_price": total_price
             })
