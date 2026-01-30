@@ -571,13 +571,11 @@ def get_delivery_user():
             "error": str(e)
         }), 500
 #----------------------------------
-
-from flask import request, jsonify
+ 
 from google.cloud.firestore_v1 import FieldFilter, SERVER_TIMESTAMP
 from google.cloud.firestore_v1 import Increment
 
-from google.cloud import firestore
-from google.cloud.firestore import FieldFilter, Increment
+ 
 
 @app.route("/update_item_status", methods=["POST"])
 def update_item_status():
@@ -1062,16 +1060,9 @@ def get_notifications():
     return jsonify(result)
 
 #-----------------------------
- 
- #---------------------------------
- 
-
 @app.route("/confirm_order", methods=["POST"])
 def confirm_order():
     try:
-        # ------------------------------------------------
-        # 0) รับ JSON body
-        # ------------------------------------------------
         data = request.get_json(force=True)
 
         nameOfm         = data.get("nameOfm")
@@ -1081,11 +1072,11 @@ def confirm_order():
         pricedelivery   = data.get("pricedelivery", 0)
         del_nameservice = data.get("delman")
 
-        if not all([nameOfm, userName, orderId]):
+        if not all([nameOfm, userName, orderId, del_nameservice]):
             return jsonify({"success": False, "error": "missing parameter"}), 400
 
         # ------------------------------------------------
-        # 1) reference customer + order
+        # 1) reference
         # ------------------------------------------------
         customer_ref = (
             db.collection("OFM_name")
@@ -1094,17 +1085,13 @@ def confirm_order():
               .document(userName)
         )
 
-        order_ref = (
-            customer_ref
-              .collection("orders")
-              .document(orderId)
-        )
+        order_ref = customer_ref.collection("orders").document(orderId)
 
         if not order_ref.get().exists:
             return jsonify({"success": False, "error": "order not found"}), 404
 
         # ------------------------------------------------
-        # 2) update order (confirm)
+        # 2) update order
         # ------------------------------------------------
         order_ref.update({
             "status": "orderconfirmed",
@@ -1112,37 +1099,31 @@ def confirm_order():
             "confirmedAt": firestore.SERVER_TIMESTAMP
         })
 
-        # ------------------------------------------------
-        # 3) clear activeOrderId
-        # ------------------------------------------------
         customer_ref.update({"activeOrderId": ""})
 
         # ------------------------------------------------
-        # 4) load items + แยกตาม partnershop
+        # 3) load items → แยกตาม partnershop
         # ------------------------------------------------
         partner_items = {}
         total_price = 0
 
         for doc in order_ref.collection("items").stream():
-            itemId = doc.id
-            item   = doc.to_dict() or {}
-
+            item = doc.to_dict() or {}
             partnershop = item.get("Partnershop")
             if not partnershop:
                 continue
 
             price = float(item.get("priceproduct", 0))
             qty   = int(item.get("numberproduct", 1))
-            total_price += price * qty
 
-            partner_items.setdefault(partnershop, {})
-            partner_items[partnershop][itemId] = item
+            total_price += price * qty
+            partner_items.setdefault(partnershop, {})[doc.id] = item
 
         if not partner_items:
             return jsonify({"success": False, "error": "no items"}), 400
 
         # ------------------------------------------------
-        # 5) notification ให้ร้านค้า
+        # 4) notify ร้านค้า
         # ------------------------------------------------
         for partnershop, items in partner_items.items():
             (
@@ -1158,8 +1139,8 @@ def confirm_order():
                       "orderId": orderId,
                       "nameOfm": nameOfm,
                       "userName": userName,
-                      "del_nameservice": del_nameservice,
                       "partnershop": partnershop,
+                      "del_nameservice": del_nameservice,
                       "pricedelivery": pricedelivery,
                       "items": items,
                       "read": False,
@@ -1168,7 +1149,7 @@ def confirm_order():
             )
 
         # ------------------------------------------------
-        # 6) save to delivery/{rider}/orders/{orderId}
+        # 5) save to delivery/{rider}/orders
         # ------------------------------------------------
         call_rider_ref = (
             db.collection("OFM_name")
@@ -1179,7 +1160,7 @@ def confirm_order():
               .document(orderId)
         )
 
-        call_rider_data = {
+        call_rider_ref.set({
             "orderId": orderId,
             "username": userName,
             "pricedelivery": pricedelivery,
@@ -1187,49 +1168,19 @@ def confirm_order():
             "mandelivery": mandelivery,
             "status": "available",
             "createdAt": firestore.SERVER_TIMESTAMP
-        }
+        })
 
-        # ใส่ข้อมูลร้าน + items
-        for partnershop, items in partner_items.items():
-            shop_total = 0
-            shop_block = {
-                "order": "available"
-            }
-
-            for itemId, item in items.items():
-                price = float(item.get("priceproduct", 0))
-                qty   = int(item.get("numberproduct", 1))
-                shop_total += price * qty
-
-                shop_block[itemId] = {
-                    "productname": item.get("productname", ""),
-                    "ProductDetail": item.get("ProductDetail", ""),
-                    "priceproduct": price,
-                    "numberproduct": qty,
-                    "image_url": (
-                        item.get("imageurl")
-                        or item.get("image_url")
-                        or item.get("imageUrl")
-                    )
-                }
-
-            shop_block["totalprice"] = shop_total
-            call_rider_data[partnershop] = shop_block
-
-        # เขียน Firestore ครั้งเดียว
-        call_rider_ref.set(call_rider_data)
-         # ------------------------------------------------
-        # 6.1) 🔥 create costservice ใหม่ทุกครั้ง (1 order = 1 costservice)
+        # ------------------------------------------------
+        # 6️⃣ 🔥 create costservice ใหม่ทุก partnershop
         # ------------------------------------------------
         for partnershop in partner_items.keys():
-
             costservice_ref = (
                 db.collection("OFM_name")
                   .document(nameOfm)
                   .collection("partner")
                   .document(partnershop)
                   .collection("costservice")
-                  .document()   # 🔥 autoId ใหม่เสมอ
+                  .document()   # autoId
             )
 
             costservice_ref.set({
@@ -1237,7 +1188,7 @@ def confirm_order():
                 "namerider": del_nameservice,
                 "mandelivery": mandelivery,
                 "pricedelivery": pricedelivery,
-                "transfer": "no",
+                "transfer": "no",          # ⭐ สำคัญมาก
                 "status": "open",
                 "created_at": firestore.SERVER_TIMESTAMP
             })
@@ -1246,9 +1197,6 @@ def confirm_order():
                 "created_at": firestore.SERVER_TIMESTAMP
             })
 
-        # ------------------------------------------------
-        # 7) response
-        # ------------------------------------------------
         return jsonify({
             "success": True,
             "partnerCount": len(partner_items),
@@ -1258,8 +1206,6 @@ def confirm_order():
     except Exception as e:
         traceback.print_exc()
         return jsonify({"success": False, "error": str(e)}), 500
-
-
 
 #---------------------------------
 @app.route("/mark_partner_notification_read", methods=["POST"])
