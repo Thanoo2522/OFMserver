@@ -576,6 +576,9 @@ from flask import request, jsonify
 from google.cloud.firestore_v1 import FieldFilter, SERVER_TIMESTAMP
 from google.cloud.firestore_v1 import Increment
 
+from google.cloud import firestore
+from google.cloud.firestore import FieldFilter, Increment
+
 @app.route("/update_item_status", methods=["POST"])
 def update_item_status():
     try:
@@ -590,7 +593,7 @@ def update_item_status():
             return jsonify({"error": "missing params"}), 400
 
         # =====================================================
-        # 1️⃣ notification (ร้านที่กด ready)
+        # 1️⃣ notification (ร้านนี้กด ready)
         # =====================================================
         notify_ref = (
             db.collection("OFM_name")
@@ -615,122 +618,92 @@ def update_item_status():
               .collection("orders")
               .document(order_id)
         )
+
         delivery_order_ref.update({
             f"{partnershop}.order": "ready"
         })
 
+        delivery_data = delivery_order_ref.get().to_dict()
+        if not delivery_data:
+            return jsonify({"error": "delivery order not found"}), 404
+
+        shop_data = delivery_data.get(partnershop, {})
+        items = shop_data.get("items", {})
+
+        if not items:
+            return jsonify({"error": "no items in partnershop"}), 400
+
         # =====================================================
-        # 3️⃣ ดึง orders ของ rider ที่ status == available
+        # 3️⃣ costservice (มีอยู่แล้วเท่านั้น)
         # =====================================================
-        orders_query = (
+        costservice_col = (
             db.collection("OFM_name")
               .document(ofmname)
-              .collection("delivery")
-              .document(namerider)
-              .collection("orders")
-              .where(filter=FieldFilter("status", "==", "available"))
+              .collection("partner")
+              .document(partnershop)
+              .collection("costservice")
         )
 
-        for order_doc in orders_query.stream():
-            order_data = order_doc.to_dict()
-            order_id   = order_doc.id
+        cs_query = (
+            costservice_col
+            .where(filter=FieldFilter("transfer", "==", "no"))
+            .where(filter=FieldFilter("namerider", "==", namerider))
+            .limit(1)
+        )
 
-            # =================================================
-            # 🔥 วนทุก partnershop ใน order
-            # =================================================
-            for partner_name, partner_data in order_data.items():
+        cs_docs = list(cs_query.stream())
+        if not cs_docs:
+            return jsonify({"error": "costservice not found"}), 404
 
-                if partner_name in [
-                    "status",
-                    "del_nameservice",
-                    "pricedelivery",
-                    "username",
-                    "totalprice"
-                ]:
-                    continue
+        cs_ref = cs_docs[0].reference
 
-                items = partner_data.get("items", {})
-                if not items:
-                    continue
+        # =====================================================
+        # 4️⃣ orders/{orderId}
+        # =====================================================
+        order_ref = cs_ref.collection("orders").document(order_id)
+        order_ref.set({
+            "updated_at": firestore.SERVER_TIMESTAMP
+        }, merge=True)
 
-                # =================================================
-                # 4️⃣ costservice (transfer == no , rider นี้)
-                # =================================================
-                costservice_col = (
-                    db.collection("OFM_name")
-                      .document(ofmname)
-                      .collection("partner")
-                      .document(partner_name)
-                      .collection("costservice")
-                )
+        # =====================================================
+        # 5️⃣ items + คำนวณ totalcost (update อย่างเดียว)
+        # =====================================================
+        totalcost_add = 0
 
-                cs_query = (
-                    costservice_col
-                    .where(filter=FieldFilter("transfer", "==", "no"))
-                    .where(filter=FieldFilter("namerider", "==", namerider))
-                    .limit(1)
-                )
+        for item_id, item in items.items():
+            price = float(item.get("priceproduct", 0))
+            qty   = int(item.get("numberproduct", 0))
 
-                cs_docs = list(cs_query.stream())
+            item_total = price * qty
+            totalcost_add += item_total
 
-                # =================================================
-                # 5️⃣ ไม่มี → สร้างใหม่
-                # =================================================
-                if not cs_docs:
-                    cs_ref = costservice_col.document()
-                    cs_ref.set({
-                        "transfer": "no",
-                        "namerider": namerider,
-                        "totalcost": 0,
-                        "created_at": SERVER_TIMESTAMP
-                    })
-                else:
-                    cs_ref = cs_docs[0].reference
+            order_ref.collection("items").document(item_id).set({
+                "productname": item.get("productname"),
+                "ProductDetail": item.get("ProductDetail"),
+                "numberproduct": qty,
+                "priceproduct": price,
+                "totalprice": item_total,
+                "updated_at": firestore.SERVER_TIMESTAMP
+            }, merge=True)
 
-                # =================================================
-                # 6️⃣ orders/{orderId}
-                # =================================================
-                order_ref = cs_ref.collection("orders").document(order_id)
-                order_ref.set({
-                    "updated_at": SERVER_TIMESTAMP
-                }, merge=True)
+        # =====================================================
+        # 6️⃣ update totalcost (สะสม)
+        # =====================================================
+        cs_ref.update({
+            "totalcost": Increment(totalcost_add)
+        })
 
-                # =================================================
-                # 7️⃣ items + คำนวณ totalcost
-                # =================================================
-                totalcost_add = 0
-
-                for item_id, item in items.items():
-                    price = item.get("priceproduct", 0)
-                    qty   = item.get("numberproduct", 0)
-
-                    item_cost = price * qty
-                    totalcost_add += item_cost
-
-                    order_ref.collection("items").document(item_id).set({
-                        "productname": item.get("productname"),
-                        "ProductDetail": item.get("ProductDetail"),
-                        "numberproduct": qty,
-                        "priceproduct": price,
-                        "totalprice": item_cost
-                    }, merge=True)
-
-                # =================================================
-                # 8️⃣ update totalcost (สะสม)
-                # =================================================
-                cs_ref.update({
-                    "totalcost": Increment(totalcost_add)
-                })
-
-        # ✅ return ต้องอยู่นอก loop
         return jsonify({
             "success": True,
-            "updatedStatus": "ready"
+            "partnershop": partnershop,
+            "updatedStatus": "ready",
+            "addCost": totalcost_add
         }), 200
 
     except Exception as e:
         print("🔥 update_item_status error:", e)
         return jsonify({"error": str(e)}), 500
+
 
 #----------------------------------
 @app.route("/get_partner_orders", methods=["GET"])
@@ -1091,6 +1064,8 @@ def get_notifications():
 #-----------------------------
  
  #---------------------------------
+ 
+
 @app.route("/confirm_order", methods=["POST"])
 def confirm_order():
     try:
@@ -1143,7 +1118,7 @@ def confirm_order():
         customer_ref.update({"activeOrderId": ""})
 
         # ------------------------------------------------
-        # 4) load items + แยกตาม Partnershop
+        # 4) load items + แยกตาม partnershop
         # ------------------------------------------------
         partner_items = {}
         total_price = 0
@@ -1167,7 +1142,7 @@ def confirm_order():
             return jsonify({"success": False, "error": "no items"}), 400
 
         # ------------------------------------------------
-        # 5) notification (logic เดิม)
+        # 5) notification ให้ร้านค้า
         # ------------------------------------------------
         for partnershop, items in partner_items.items():
             (
@@ -1183,9 +1158,9 @@ def confirm_order():
                       "orderId": orderId,
                       "nameOfm": nameOfm,
                       "userName": userName,
-                      "del_nameservice": del_nameservice,               
+                      "del_nameservice": del_nameservice,
                       "partnershop": partnershop,
-                      "pricedelivery":pricedelivery,
+                      "pricedelivery": pricedelivery,
                       "items": items,
                       "read": False,
                       "createdAt": firestore.SERVER_TIMESTAMP
@@ -1214,7 +1189,7 @@ def confirm_order():
             "createdAt": firestore.SERVER_TIMESTAMP
         }
 
-        # ใส่ข้อมูลร้าน + itemID (มีรายละเอียด item)
+        # ใส่ข้อมูลร้าน + items
         for partnershop, items in partner_items.items():
             shop_total = 0
             shop_block = {
@@ -1231,21 +1206,54 @@ def confirm_order():
                     "ProductDetail": item.get("ProductDetail", ""),
                     "priceproduct": price,
                     "numberproduct": qty,
-                    "image_url":  (  item.get("imageurl")
-                                      or item.get("image_url")
-                                      or item.get("imageUrl")   
-                                      )
-                                   
-
-
-                    #"prefare": "available"
+                    "image_url": (
+                        item.get("imageurl")
+                        or item.get("image_url")
+                        or item.get("imageUrl")
+                    )
                 }
 
             shop_block["totalprice"] = shop_total
             call_rider_data[partnershop] = shop_block
 
-        # ✅ เขียน Firestore แค่ครั้งเดียว
+        # เขียน Firestore ครั้งเดียว
         call_rider_ref.set(call_rider_data)
+
+        # ------------------------------------------------
+        # 6.1) 🔥 create costservice (transfer = no)
+        # ------------------------------------------------
+        for partnershop in partner_items.keys():
+
+            costservice_col = (
+                db.collection("OFM_name")
+                  .document(nameOfm)
+                  .collection("partner")
+                  .document(partnershop)
+                  .collection("costservice")
+            )
+
+            cs_query = (
+                costservice_col
+                .where("transfer", "==", "no")
+                .where("namerider", "==", del_nameservice)
+                .limit(1)
+            )
+
+            cs_docs = list(cs_query.stream())
+
+            if not cs_docs:
+                cs_ref = costservice_col.document()
+                cs_ref.set({
+                    "transfer": "no",
+                    "namerider": del_nameservice,
+                    "created_at": firestore.SERVER_TIMESTAMP
+                })
+            else:
+                cs_ref = cs_docs[0].reference
+
+            cs_ref.collection("orders").document(orderId).set({
+                "created_at": firestore.SERVER_TIMESTAMP
+            })
 
         # ------------------------------------------------
         # 7) response
@@ -1259,7 +1267,6 @@ def confirm_order():
     except Exception as e:
         traceback.print_exc()
         return jsonify({"success": False, "error": str(e)}), 500
-
 
 
 
