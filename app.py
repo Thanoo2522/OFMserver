@@ -1218,40 +1218,31 @@ def confirm_order():
 
         # เขียน Firestore ครั้งเดียว
         call_rider_ref.set(call_rider_data)
-
-        # ------------------------------------------------
-        # 6.1) 🔥 create costservice (transfer = no)
+         # ------------------------------------------------
+        # 6.1) 🔥 create costservice ใหม่ทุกครั้ง (1 order = 1 costservice)
         # ------------------------------------------------
         for partnershop in partner_items.keys():
 
-            costservice_col = (
+            costservice_ref = (
                 db.collection("OFM_name")
                   .document(nameOfm)
                   .collection("partner")
                   .document(partnershop)
                   .collection("costservice")
+                  .document()   # 🔥 autoId ใหม่เสมอ
             )
 
-            cs_query = (
-                costservice_col
-                .where("transfer", "==", "no")
-                .where("namerider", "==", del_nameservice)
-                .limit(1)
-            )
+            costservice_ref.set({
+                "orderId": orderId,
+                "namerider": del_nameservice,
+                "mandelivery": mandelivery,
+                "pricedelivery": pricedelivery,
+                "transfer": "no",
+                "status": "open",
+                "created_at": firestore.SERVER_TIMESTAMP
+            })
 
-            cs_docs = list(cs_query.stream())
-
-            if not cs_docs:
-                cs_ref = costservice_col.document()
-                cs_ref.set({
-                    "transfer": "no",
-                    "namerider": del_nameservice,
-                    "created_at": firestore.SERVER_TIMESTAMP
-                })
-            else:
-                cs_ref = cs_docs[0].reference
-
-            cs_ref.collection("orders").document(orderId).set({
+            costservice_ref.collection("orders").document(orderId).set({
                 "created_at": firestore.SERVER_TIMESTAMP
             })
 
