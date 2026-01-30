@@ -571,9 +571,9 @@ def get_delivery_user():
             "error": str(e)
         }), 500
 #----------------------------------
- 
-from google.cloud.firestore_v1 import FieldFilter
-from google.cloud.firestore_v1 import SERVER_TIMESTAMP
+
+from flask import request, jsonify
+from google.cloud.firestore_v1 import FieldFilter, SERVER_TIMESTAMP
 
 @app.route("/update_item_status", methods=["POST"])
 def update_item_status():
@@ -581,30 +581,30 @@ def update_item_status():
         data = request.get_json(force=True)
 
         ofmname     = data.get("ofmname")
-        partnershop = data.get("partnershop")
-        order_id    = data.get("orderId")
+        partnershop_clicked = data.get("partnershop")
+        order_id_clicked    = data.get("orderId")
         namerider   = data.get("namerider")
 
-        if not ofmname or not partnershop or not order_id or not namerider:
+        if not ofmname or not partnershop_clicked or not order_id_clicked or not namerider:
             return jsonify({"error": "missing params"}), 400
 
         # =====================================================
-        # 1️⃣ notification (เดิม)
+        # 1️⃣ notification (ร้านที่กด ready)
         # =====================================================
         notify_ref = (
             db.collection("OFM_name")
               .document(ofmname)
               .collection("partner")
-              .document(partnershop)
+              .document(partnershop_clicked)
               .collection("system")
               .document("notification")
               .collection("orders")
-              .document(order_id)
+              .document(order_id_clicked)
         )
         notify_ref.update({"read": True})
 
         # =====================================================
-        # 2️⃣ update delivery order status (เดิม)
+        # 2️⃣ update order ของ rider → ร้านนี้ ready
         # =====================================================
         delivery_order_ref = (
             db.collection("OFM_name")
@@ -612,14 +612,14 @@ def update_item_status():
               .collection("delivery")
               .document(namerider)
               .collection("orders")
-              .document(order_id)
+              .document(order_id_clicked)
         )
         delivery_order_ref.update({
-            f"{partnershop}.order": "ready"
+            f"{partnershop_clicked}.order": "ready"
         })
 
         # =====================================================
-        # 3️⃣ orders status == available (rider นี้)
+        # 3️⃣ ดึง orders ของ rider ที่ status == available
         # =====================================================
         orders_query = (
             db.collection("OFM_name")
@@ -632,15 +632,18 @@ def update_item_status():
 
         for order_doc in orders_query.stream():
             order_data = order_doc.to_dict()
-            order_id = order_doc.id
+            order_id   = order_doc.id
 
             del_nameservice = order_data.get("del_nameservice")
             pricedelivery   = order_data.get("pricedelivery", 0)
             username        = order_data.get("username")
             totalprice      = order_data.get("totalprice", 0)
 
+            # =================================================
             # 🔥 วนทุก partnershop ใน order
+            # =================================================
             for partner_name, partner_data in order_data.items():
+
                 if partner_name in [
                     "status",
                     "del_nameservice",
@@ -655,29 +658,30 @@ def update_item_status():
                     continue
 
                 # =================================================
-                # 4️⃣ หา costservice transfer == "no"
+                # 4️⃣ costservice ของร้านนี้ (transfer == no)
                 # =================================================
                 costservice_col = (
                     db.collection("OFM_name")
                       .document(ofmname)
                       .collection("partner")
-                      .document(partnershop)
+                      .document(partner_name)
                       .collection("costservice")
                 )
 
                 cs_query = (
                     costservice_col
                     .where(filter=FieldFilter("transfer", "==", "no"))
+                    .where(filter=FieldFilter("namerider", "==", namerider))
                     .limit(1)
                 )
 
                 cs_docs = list(cs_query.stream())
 
                 # =================================================
-                # 5️⃣ ไม่มี → สร้างใหม่ (🔥 auto-id)
+                # 5️⃣ ไม่มี → สร้างใหม่ (auto-id)
                 # =================================================
                 if not cs_docs:
-                    cs_ref = costservice_col.document()   # 🔥 auto-id
+                    cs_ref = costservice_col.document()
                     cs_ref.set({
                         "transfer": "no",
                         "created_at": SERVER_TIMESTAMP,
@@ -688,7 +692,7 @@ def update_item_status():
                     cs_ref = cs_docs[0].reference
 
                 # =================================================
-                # 6️⃣ บันทึก order_id ใต้ costservice
+                # 6️⃣ บันทึก order ใต้ costservice
                 # =================================================
                 order_ref = cs_ref.collection("orders").document(order_id)
                 order_ref.set({
@@ -717,9 +721,7 @@ def update_item_status():
     except Exception as e:
         print("🔥 update_item_status error:", e)
         return jsonify({"error": str(e)}), 500
-
-
-       
+  
 #----------------------------------
 @app.route("/get_partner_orders", methods=["GET"])
 def get_partner_orders():
