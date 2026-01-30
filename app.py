@@ -571,6 +571,9 @@ def get_delivery_user():
             "error": str(e)
         }), 500
 #----------------------------------
+from datetime import datetime
+from google.cloud.firestore_v1 import FieldFilter
+
 @app.route("/update_item_status", methods=["POST"])
 def update_item_status():
     try:
@@ -584,9 +587,9 @@ def update_item_status():
         if not ofmname or not partnershop or not order_id or not namerider:
             return jsonify({"error": "missing params"}), 400
 
-        # ===============================
-        # 1️⃣ reference notification order (เดิม)
-        # ===============================
+        # =====================================================
+        # 1️⃣ notification (เดิม)
+        # =====================================================
         notify_ref = (
             db.collection("OFM_name")
               .document(ofmname)
@@ -597,14 +600,11 @@ def update_item_status():
               .collection("orders")
               .document(order_id)
         )
+        notify_ref.update({"read": True})
 
-        notify_ref.update({
-            "read": True
-        })
-
-        # ===============================
-        # 2️⃣ update delivery order status
-        # ===============================
+        # =====================================================
+        # 2️⃣ update delivery order status (เดิม)
+        # =====================================================
         delivery_order_ref = (
             db.collection("OFM_name")
               .document(ofmname)
@@ -613,11 +613,79 @@ def update_item_status():
               .collection("orders")
               .document(order_id)
         )
-
-        # 🔥 update nested field: {partnershop}.order
         delivery_order_ref.update({
             f"{partnershop}.order": "ready"
         })
+
+        # =====================================================
+        # 3️⃣ 🔥 ดึง orders ที่ status == available
+        # =====================================================
+        orders_query = (
+            db.collection_group("orders")
+              .where(filter=FieldFilter("status", "==", "available"))
+        )
+
+        for order_doc in orders_query.stream():
+            order_data = order_doc.to_dict()
+
+            # -------------------------
+            # AA: data
+            # -------------------------
+            del_nameservice = order_data.get("del_nameservice")
+            pricedelivery   = order_data.get("pricedelivery", 0)
+            username        = order_data.get("username")
+            totalprice      = order_data.get("totalprice", 0)
+            items           = order_data.get("items", {})
+            partner_name    = order_data.get("partnershop")
+
+            if not partner_name:
+                continue
+
+            # =================================================
+            # 4️⃣ หา costservice transfer == "no"
+            # =================================================
+            costservice_col = (
+                db.collection("OFM_name")
+                  .document(ofmname)
+                  .collection("partner")
+                  .document(partner_name)
+                  .collection("costservice")
+            )
+
+            cs_query = costservice_col.where(
+                filter=FieldFilter("transfer", "==", "no")
+            ).limit(1)
+
+            cs_docs = list(cs_query.stream())
+
+            # =================================================
+            # 5️⃣ ไม่มี → สร้างใหม่
+            # =================================================
+            if not cs_docs:
+                timestamp_serviceID = datetime.now().strftime("%Y%m%d%H%M%S")
+                cs_ref = costservice_col.document(timestamp_serviceID)
+
+                cs_ref.set({
+                    "transfer": "no",
+                    "del_nameservice": del_nameservice,
+                    "pricedelivery": pricedelivery,
+                    "username": username,
+                    "totalprice": totalprice,
+                    "created_at": datetime.utcnow()
+                })
+            else:
+                cs_ref = cs_docs[0].reference
+
+            # =================================================
+            # 6️⃣ บันทึก items แยกตาม itemID
+            # =================================================
+            for item_id, item in items.items():
+                cs_ref.collection("items").document(item_id).set({
+                    "productname": item.get("productname"),
+                    "ProductDetail": item.get("ProductDetail"),
+                    "numberproduct": item.get("numberproduct"),
+                    "priceproduct": item.get("priceproduct")
+                })
 
         return jsonify({
             "success": True,
@@ -628,6 +696,7 @@ def update_item_status():
     except Exception as e:
         print("🔥 update_item_status error:", e)
         return jsonify({"error": str(e)}), 500
+
 
 
        
