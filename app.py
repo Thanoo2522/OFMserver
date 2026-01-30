@@ -626,10 +626,10 @@ def update_item_status():
               .document(ofmname)
               .collection("delivery")
               .document(namerider)
-              .collection("orders")
-              .where(filter=FieldFilter("status", "==", "available"))
+               .collection("orders")
+              .where("status", "==", "available")
         )
-
+ 
         for order_doc in orders_query.stream():
             order_data = order_doc.to_dict()
 
@@ -653,7 +653,7 @@ def update_item_status():
                 db.collection("OFM_name")
                   .document(ofmname)
                   .collection("partner")
-                  .document(partner_name)
+                  .document(partnershop)
                   .collection("costservice")
             )
 
