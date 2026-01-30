@@ -573,6 +573,7 @@ def get_delivery_user():
 #----------------------------------
  
 from google.cloud.firestore_v1 import FieldFilter
+from google.cloud.firestore_v1 import SERVER_TIMESTAMP
 
 @app.route("/update_item_status", methods=["POST"])
 def update_item_status():
@@ -618,89 +619,106 @@ def update_item_status():
         })
 
         # =====================================================
-        # 3️⃣ 🔥 ดึง orders ที่ status == available
-        #    เฉพาะ rider คนนี้
+        # 3️⃣ orders status == available (rider นี้)
         # =====================================================
         orders_query = (
             db.collection("OFM_name")
               .document(ofmname)
               .collection("delivery")
               .document(namerider)
-               .collection("orders")
-              .where("status", "==", "available")
+              .collection("orders")
+              .where(filter=FieldFilter("status", "==", "available"))
         )
- 
+
         for order_doc in orders_query.stream():
             order_data = order_doc.to_dict()
+            order_id = order_doc.id
 
-            # -------------------------
-            # AA: data
-            # -------------------------
             del_nameservice = order_data.get("del_nameservice")
             pricedelivery   = order_data.get("pricedelivery", 0)
             username        = order_data.get("username")
             totalprice      = order_data.get("totalprice", 0)
-            items           = order_data.get("items", {})
-            partner_name    = order_data.get("partnershop")
 
-            if not partner_name:
-                continue
+            # 🔥 วนทุก partnershop ใน order
+            for partner_name, partner_data in order_data.items():
+                if partner_name in [
+                    "status",
+                    "del_nameservice",
+                    "pricedelivery",
+                    "username",
+                    "totalprice"
+                ]:
+                    continue
 
-            # =================================================
-            # 4️⃣ หา costservice transfer == "no"
-            # =================================================
-            costservice_col = (
-                db.collection("OFM_name")
-                  .document(ofmname)
-                  .collection("partner")
-                  .document(partnershop)
-                  .collection("costservice")
-            )
+                items = partner_data.get("items", {})
+                if not items:
+                    continue
 
-            cs_query = costservice_col.where(
-                filter=FieldFilter("transfer", "==", "no")
-            ).limit(1)
+                # =================================================
+                # 4️⃣ หา costservice transfer == "no"
+                # =================================================
+                costservice_col = (
+                    db.collection("OFM_name")
+                      .document(ofmname)
+                      .collection("partner")
+                      .document(partnershop)
+                      .collection("costservice")
+                )
 
-            cs_docs = list(cs_query.stream())
+                cs_query = (
+                    costservice_col
+                    .where(filter=FieldFilter("transfer", "==", "no"))
+                    .limit(1)
+                )
 
-            # =================================================
-            # 5️⃣ ไม่มี → สร้างใหม่
-            # =================================================
-            if not cs_docs:
-                timestamp_serviceID = datetime.now().strftime("%Y%m%d%H%M%S")
-                cs_ref = costservice_col.document(timestamp_serviceID)
+                cs_docs = list(cs_query.stream())
 
-                cs_ref.set({
-                    "transfer": "no",
+                # =================================================
+                # 5️⃣ ไม่มี → สร้างใหม่ (🔥 auto-id)
+                # =================================================
+                if not cs_docs:
+                    cs_ref = costservice_col.document()   # 🔥 auto-id
+                    cs_ref.set({
+                        "transfer": "no",
+                        "created_at": SERVER_TIMESTAMP,
+                        "namerider": namerider,
+                        "partnershop": partner_name
+                    })
+                else:
+                    cs_ref = cs_docs[0].reference
+
+                # =================================================
+                # 6️⃣ บันทึก order_id ใต้ costservice
+                # =================================================
+                order_ref = cs_ref.collection("orders").document(order_id)
+                order_ref.set({
                     "del_nameservice": del_nameservice,
                     "pricedelivery": pricedelivery,
                     "username": username,
-                    "totalprice": totalprice,
-                    "created_at": datetime.utcnow()
-                })
-            else:
-                cs_ref = cs_docs[0].reference
+                    "totalprice": totalprice
+                }, merge=True)
 
-            # =================================================
-            # 6️⃣ บันทึก items แยกตาม itemID
-            # =================================================
-            for item_id, item in items.items():
-                cs_ref.collection("items").document(item_id).set({
-                    "productname": item.get("productname"),
-                    "ProductDetail": item.get("ProductDetail"),
-                    "numberproduct": item.get("numberproduct"),
-                    "priceproduct": item.get("priceproduct")
-                })
+                # =================================================
+                # 7️⃣ บันทึก items
+                # =================================================
+                for item_id, item in items.items():
+                    order_ref.collection("items").document(item_id).set({
+                        "productname": item.get("productname"),
+                        "ProductDetail": item.get("ProductDetail"),
+                        "numberproduct": item.get("numberproduct"),
+                        "priceproduct": item.get("priceproduct")
+                    })
 
         return jsonify({
             "success": True,
-            "orderId": order_id,
             "updatedStatus": "ready"
         }), 200
 
     except Exception as e:
         print("🔥 update_item_status error:", e)
         return jsonify({"error": str(e)}), 500
+
+
        
 #----------------------------------
 @app.route("/get_partner_orders", methods=["GET"])
