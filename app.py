@@ -571,7 +571,7 @@ def get_delivery_user():
             "error": str(e)
         }), 500
 #----------------------------------
-from datetime import datetime
+ 
 from google.cloud.firestore_v1 import FieldFilter
 
 @app.route("/update_item_status", methods=["POST"])
@@ -619,9 +619,14 @@ def update_item_status():
 
         # =====================================================
         # 3️⃣ 🔥 ดึง orders ที่ status == available
+        #    เฉพาะ rider คนนี้
         # =====================================================
         orders_query = (
-            db.collection_group("orders")
+            db.collection("OFM_name")
+              .document(ofmname)
+              .collection("delivery")
+              .document(namerider)
+              .collection("orders")
               .where(filter=FieldFilter("status", "==", "available"))
         )
 
@@ -696,9 +701,6 @@ def update_item_status():
     except Exception as e:
         print("🔥 update_item_status error:", e)
         return jsonify({"error": str(e)}), 500
-
-
-
        
 #----------------------------------
 @app.route("/get_partner_orders", methods=["GET"])
