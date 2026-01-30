@@ -574,6 +574,7 @@ def get_delivery_user():
 
 from flask import request, jsonify
 from google.cloud.firestore_v1 import FieldFilter, SERVER_TIMESTAMP
+from google.cloud.firestore_v1 import Increment
 
 @app.route("/update_item_status", methods=["POST"])
 def update_item_status():
@@ -581,11 +582,11 @@ def update_item_status():
         data = request.get_json(force=True)
 
         ofmname     = data.get("ofmname")
-        partnershop_clicked = data.get("partnershop")
-        order_id_clicked    = data.get("orderId")
+        partnershop = data.get("partnershop")
+        order_id    = data.get("orderId")
         namerider   = data.get("namerider")
 
-        if not ofmname or not partnershop_clicked or not order_id_clicked or not namerider:
+        if not ofmname or not partnershop or not order_id or not namerider:
             return jsonify({"error": "missing params"}), 400
 
         # =====================================================
@@ -595,11 +596,11 @@ def update_item_status():
             db.collection("OFM_name")
               .document(ofmname)
               .collection("partner")
-              .document(partnershop_clicked)
+              .document(partnershop)
               .collection("system")
               .document("notification")
               .collection("orders")
-              .document(order_id_clicked)
+              .document(order_id)
         )
         notify_ref.update({"read": True})
 
@@ -612,10 +613,10 @@ def update_item_status():
               .collection("delivery")
               .document(namerider)
               .collection("orders")
-              .document(order_id_clicked)
+              .document(order_id)
         )
         delivery_order_ref.update({
-            f"{partnershop_clicked}.order": "ready"
+            f"{partnershop}.order": "ready"
         })
 
         # =====================================================
@@ -633,11 +634,6 @@ def update_item_status():
         for order_doc in orders_query.stream():
             order_data = order_doc.to_dict()
             order_id   = order_doc.id
-
-            del_nameservice = order_data.get("del_nameservice")
-            pricedelivery   = order_data.get("pricedelivery", 0)
-            username        = order_data.get("username")
-            totalprice      = order_data.get("totalprice", 0)
 
             # =================================================
             # 🔥 วนทุก partnershop ใน order
@@ -658,7 +654,7 @@ def update_item_status():
                     continue
 
                 # =================================================
-                # 4️⃣ costservice ของร้านนี้ (transfer == no)
+                # 4️⃣ costservice (transfer == no , rider นี้)
                 # =================================================
                 costservice_col = (
                     db.collection("OFM_name")
@@ -678,41 +674,55 @@ def update_item_status():
                 cs_docs = list(cs_query.stream())
 
                 # =================================================
-                # 5️⃣ ไม่มี → สร้างใหม่ (auto-id)
+                # 5️⃣ ไม่มี → สร้างใหม่
                 # =================================================
                 if not cs_docs:
                     cs_ref = costservice_col.document()
                     cs_ref.set({
                         "transfer": "no",
-                        "created_at": SERVER_TIMESTAMP,
                         "namerider": namerider,
-                        "partnershop": partner_name
+                        "totalcost": 0,
+                        "created_at": SERVER_TIMESTAMP
                     })
                 else:
                     cs_ref = cs_docs[0].reference
 
                 # =================================================
-                # 6️⃣ บันทึก order ใต้ costservice
+                # 6️⃣ orders/{orderId}
                 # =================================================
                 order_ref = cs_ref.collection("orders").document(order_id)
                 order_ref.set({
-                    "del_nameservice": del_nameservice,
-                    "pricedelivery": pricedelivery,
-                    "username": username,
-                    "totalprice": totalprice
+                    "updated_at": SERVER_TIMESTAMP
                 }, merge=True)
 
                 # =================================================
-                # 7️⃣ บันทึก items
+                # 7️⃣ items + คำนวณ totalcost
                 # =================================================
+                totalcost_add = 0
+
                 for item_id, item in items.items():
+                    price = item.get("priceproduct", 0)
+                    qty   = item.get("numberproduct", 0)
+
+                    item_cost = price * qty
+                    totalcost_add += item_cost
+
                     order_ref.collection("items").document(item_id).set({
                         "productname": item.get("productname"),
                         "ProductDetail": item.get("ProductDetail"),
-                        "numberproduct": item.get("numberproduct"),
-                        "priceproduct": item.get("priceproduct")
-                    })
+                        "numberproduct": qty,
+                        "priceproduct": price,
+                        "totalprice": item_cost
+                    }, merge=True)
 
+                # =================================================
+                # 8️⃣ update totalcost (สะสม)
+                # =================================================
+                cs_ref.update({
+                    "totalcost": Increment(totalcost_add)
+                })
+
+        # ✅ return ต้องอยู่นอก loop
         return jsonify({
             "success": True,
             "updatedStatus": "ready"
@@ -721,7 +731,7 @@ def update_item_status():
     except Exception as e:
         print("🔥 update_item_status error:", e)
         return jsonify({"error": str(e)}), 500
-  
+
 #----------------------------------
 @app.route("/get_partner_orders", methods=["GET"])
 def get_partner_orders():
