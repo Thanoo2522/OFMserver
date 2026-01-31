@@ -1065,9 +1065,7 @@ def confirm_order():
     try:
         data = request.get_json(force=True)
 
-        # ------------------------------------------------
         # 0) รับค่าจาก client
-        # ------------------------------------------------
         nameOfm         = data.get("nameOfm")
         userName        = data.get("userName")
         orderId         = data.get("orderId")
@@ -1076,18 +1074,12 @@ def confirm_order():
         del_nameservice = data.get("delman")
 
         if not all([nameOfm, userName, orderId, del_nameservice]):
-<<<<<<< HEAD
-            return jsonify({"success": False, "error": "missing parameter"}), 400
-=======
             return jsonify({
                 "success": False,
                 "error": "missing parameter"
             }), 400
->>>>>>> 554342e (update feature)
 
-        # ------------------------------------------------
         # 1) reference
-        # ------------------------------------------------
         customer_ref = (
             db.collection("OFM_name")
               .document(nameOfm)
@@ -1103,58 +1095,31 @@ def confirm_order():
                 "error": "order not found"
             }), 404
 
-        # ------------------------------------------------
         # 2) update order
-        # ------------------------------------------------
         order_ref.update({
             "status": "orderconfirmed",
             "Preorder": 0,
             "confirmedAt": firestore.SERVER_TIMESTAMP
         })
 
-<<<<<<< HEAD
         customer_ref.update({"activeOrderId": ""})
 
-        # ------------------------------------------------
-        # 3) load items → แยกตาม partnershop
-=======
-        customer_ref.update({
-            "activeOrderId": ""
-        })
-
-        # ------------------------------------------------
-        # 3) update items + build partner_items
->>>>>>> 554342e (update feature)
-        # ------------------------------------------------
+        # 3) update items + build partner_items จาก Firestore
         items_ref = order_ref.collection("items")
         items_stream = items_ref.stream()
 
-<<<<<<< HEAD
-        for doc in order_ref.collection("items").stream():
-            item = doc.to_dict() or {}
-            partnershop = item.get("Partnershop")
-            if not partnershop:
-                continue
-
-            price = float(item.get("priceproduct", 0))
-            qty   = int(item.get("numberproduct", 1))
-
-            total_price += price * qty
-            partner_items.setdefault(partnershop, {})[doc.id] = item
-=======
         batch = db.batch()
         item_ids = []
-        partner_items = {}   # ⭐ สร้างจาก Firestore
+        partner_items = {}
 
         for item in items_stream:
-            item_data = item.to_dict()
+            item_data = item.to_dict() or {}
             partnershop = item_data.get("partnershop")
 
             item_ids.append(item.id)
 
             if partnershop:
                 partner_items.setdefault(partnershop, []).append(item.id)
->>>>>>> 554342e (update feature)
 
             batch.update(item.reference, {
                 "status": "confirmed"
@@ -1163,13 +1128,7 @@ def confirm_order():
         if item_ids:
             batch.commit()
 
-        # ------------------------------------------------
-<<<<<<< HEAD
-        # 4) notify ร้านค้า
-=======
         # 4) notify partner shops
->>>>>>> 554342e (update feature)
-        # ------------------------------------------------
         for partnershop, items in partner_items.items():
             (
                 db.collection("OFM_name")
@@ -1187,19 +1146,13 @@ def confirm_order():
                       "partnershop": partnershop,
                       "del_nameservice": del_nameservice,
                       "pricedelivery": pricedelivery,
-<<<<<<< HEAD
                       "items": items,
-=======
-                      "items": items,   # ✅ item ของร้านนั้นจริง ๆ
->>>>>>> 554342e (update feature)
                       "read": False,
                       "createdAt": firestore.SERVER_TIMESTAMP
                   })
             )
 
-        # ------------------------------------------------
         # 5) save to delivery/{rider}/orders
-        # ------------------------------------------------
         call_rider_ref = (
             db.collection("OFM_name")
               .document(nameOfm)
@@ -1219,33 +1172,7 @@ def confirm_order():
             "createdAt": firestore.SERVER_TIMESTAMP
         })
 
-          #  create costservice (ทุก partnershop)
-        for partnershop in partner_items.keys():
-            costservice_ref = (
-                db.collection("OFM_name")
-                  .document(nameOfm)
-                  .collection("partner")
-                  .document(partnershop)
-                  .collection("costservice")
-                  .document()
-            )
-
-            costservice_ref.collection("orders").document(orderId).set({
-                                "orderId": orderId,
-                "namerider": del_nameservice,
-                "mandelivery": mandelivery,
-                "pricedelivery": pricedelivery,
-                "transfer": "no",
-                "status": "open",
-                "created_at": firestore.SERVER_TIMESTAMP
-            })
-        # ------------------------------------------------
-<<<<<<< HEAD
-        # 6️⃣ 🔥 create costservice ใหม่ทุก partnershop
-=======
         # 6) create costservice (ทุก partnershop)
->>>>>>> 554342e (update feature)
-        # ------------------------------------------------
         for partnershop in partner_items.keys():
             costservice_ref = (
                 db.collection("OFM_name")
@@ -1253,11 +1180,7 @@ def confirm_order():
                   .collection("partner")
                   .document(partnershop)
                   .collection("costservice")
-<<<<<<< HEAD
-                  .document()   # autoId
-=======
                   .document()
->>>>>>> 554342e (update feature)
             )
 
             costservice_ref.set({
@@ -1265,11 +1188,7 @@ def confirm_order():
                 "namerider": del_nameservice,
                 "mandelivery": mandelivery,
                 "pricedelivery": pricedelivery,
-<<<<<<< HEAD
-                "transfer": "no",          # ⭐ สำคัญมาก
-=======
                 "transfer": "no",
->>>>>>> 554342e (update feature)
                 "status": "open",
                 "created_at": firestore.SERVER_TIMESTAMP
             })
