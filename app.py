@@ -1065,6 +1065,9 @@ def confirm_order():
     try:
         data = request.get_json(force=True)
 
+        # ------------------------------------------------
+        # 0) รับค่าจาก client
+        # ------------------------------------------------
         nameOfm         = data.get("nameOfm")
         userName        = data.get("userName")
         orderId         = data.get("orderId")
@@ -1073,7 +1076,14 @@ def confirm_order():
         del_nameservice = data.get("delman")
 
         if not all([nameOfm, userName, orderId, del_nameservice]):
+<<<<<<< HEAD
             return jsonify({"success": False, "error": "missing parameter"}), 400
+=======
+            return jsonify({
+                "success": False,
+                "error": "missing parameter"
+            }), 400
+>>>>>>> 554342e (update feature)
 
         # ------------------------------------------------
         # 1) reference
@@ -1088,7 +1098,10 @@ def confirm_order():
         order_ref = customer_ref.collection("orders").document(orderId)
 
         if not order_ref.get().exists:
-            return jsonify({"success": False, "error": "order not found"}), 404
+            return jsonify({
+                "success": False,
+                "error": "order not found"
+            }), 404
 
         # ------------------------------------------------
         # 2) update order
@@ -1099,14 +1112,24 @@ def confirm_order():
             "confirmedAt": firestore.SERVER_TIMESTAMP
         })
 
+<<<<<<< HEAD
         customer_ref.update({"activeOrderId": ""})
 
         # ------------------------------------------------
         # 3) load items → แยกตาม partnershop
-        # ------------------------------------------------
-        partner_items = {}
-        total_price = 0
+=======
+        customer_ref.update({
+            "activeOrderId": ""
+        })
 
+        # ------------------------------------------------
+        # 3) update items + build partner_items
+>>>>>>> 554342e (update feature)
+        # ------------------------------------------------
+        items_ref = order_ref.collection("items")
+        items_stream = items_ref.stream()
+
+<<<<<<< HEAD
         for doc in order_ref.collection("items").stream():
             item = doc.to_dict() or {}
             partnershop = item.get("Partnershop")
@@ -1118,12 +1141,34 @@ def confirm_order():
 
             total_price += price * qty
             partner_items.setdefault(partnershop, {})[doc.id] = item
+=======
+        batch = db.batch()
+        item_ids = []
+        partner_items = {}   # ⭐ สร้างจาก Firestore
 
-        if not partner_items:
-            return jsonify({"success": False, "error": "no items"}), 400
+        for item in items_stream:
+            item_data = item.to_dict()
+            partnershop = item_data.get("partnershop")
+
+            item_ids.append(item.id)
+
+            if partnershop:
+                partner_items.setdefault(partnershop, []).append(item.id)
+>>>>>>> 554342e (update feature)
+
+            batch.update(item.reference, {
+                "status": "confirmed"
+            })
+
+        if item_ids:
+            batch.commit()
 
         # ------------------------------------------------
+<<<<<<< HEAD
         # 4) notify ร้านค้า
+=======
+        # 4) notify partner shops
+>>>>>>> 554342e (update feature)
         # ------------------------------------------------
         for partnershop, items in partner_items.items():
             (
@@ -1142,7 +1187,11 @@ def confirm_order():
                       "partnershop": partnershop,
                       "del_nameservice": del_nameservice,
                       "pricedelivery": pricedelivery,
+<<<<<<< HEAD
                       "items": items,
+=======
+                      "items": items,   # ✅ item ของร้านนั้นจริง ๆ
+>>>>>>> 554342e (update feature)
                       "read": False,
                       "createdAt": firestore.SERVER_TIMESTAMP
                   })
@@ -1171,7 +1220,11 @@ def confirm_order():
         })
 
         # ------------------------------------------------
+<<<<<<< HEAD
         # 6️⃣ 🔥 create costservice ใหม่ทุก partnershop
+=======
+        # 6) create costservice (ทุก partnershop)
+>>>>>>> 554342e (update feature)
         # ------------------------------------------------
         for partnershop in partner_items.keys():
             costservice_ref = (
@@ -1180,7 +1233,11 @@ def confirm_order():
                   .collection("partner")
                   .document(partnershop)
                   .collection("costservice")
+<<<<<<< HEAD
                   .document()   # autoId
+=======
+                  .document()
+>>>>>>> 554342e (update feature)
             )
 
             costservice_ref.set({
@@ -1188,7 +1245,11 @@ def confirm_order():
                 "namerider": del_nameservice,
                 "mandelivery": mandelivery,
                 "pricedelivery": pricedelivery,
+<<<<<<< HEAD
                 "transfer": "no",          # ⭐ สำคัญมาก
+=======
+                "transfer": "no",
+>>>>>>> 554342e (update feature)
                 "status": "open",
                 "created_at": firestore.SERVER_TIMESTAMP
             })
@@ -1200,12 +1261,15 @@ def confirm_order():
         return jsonify({
             "success": True,
             "partnerCount": len(partner_items),
-            "totalprice": total_price
+            "itemCount": len(item_ids)
         }), 200
 
     except Exception as e:
         traceback.print_exc()
-        return jsonify({"success": False, "error": str(e)}), 500
+        return jsonify({
+            "success": False,
+            "error": str(e)
+        }), 500
 
 #---------------------------------
 @app.route("/mark_partner_notification_read", methods=["POST"])
