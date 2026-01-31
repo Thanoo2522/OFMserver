@@ -1219,6 +1219,26 @@ def confirm_order():
             "createdAt": firestore.SERVER_TIMESTAMP
         })
 
+          #  create costservice (ทุก partnershop)
+        for partnershop in partner_items.keys():
+            costservice_ref = (
+                db.collection("OFM_name")
+                  .document(nameOfm)
+                  .collection("partner")
+                  .document(partnershop)
+                  .collection("costservice")
+                  .document()
+            )
+
+            costservice_ref.collection("orders").document(orderId).set({
+                                "orderId": orderId,
+                "namerider": del_nameservice,
+                "mandelivery": mandelivery,
+                "pricedelivery": pricedelivery,
+                "transfer": "no",
+                "status": "open",
+                "created_at": firestore.SERVER_TIMESTAMP
+            })
         # ------------------------------------------------
 <<<<<<< HEAD
         # 6️⃣ 🔥 create costservice ใหม่ทุก partnershop
