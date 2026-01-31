@@ -1063,9 +1063,11 @@ def get_notifications():
 @app.route("/confirm_order", methods=["POST"])
 def confirm_order():
     try:
+        # ------------------------------------------------
+        # 0) รับ JSON body
+        # ------------------------------------------------
         data = request.get_json(force=True)
 
-        # 0) รับค่าจาก client
         nameOfm         = data.get("nameOfm")
         userName        = data.get("userName")
         orderId         = data.get("orderId")
@@ -1073,13 +1075,12 @@ def confirm_order():
         pricedelivery   = data.get("pricedelivery", 0)
         del_nameservice = data.get("delman")
 
-        if not all([nameOfm, userName, orderId, del_nameservice]):
-            return jsonify({
-                "success": False,
-                "error": "missing parameter"
-            }), 400
+        if not all([nameOfm, userName, orderId]):
+            return jsonify({"success": False, "error": "missing parameter"}), 400
 
-        # 1) reference
+        # ------------------------------------------------
+        # 1) reference customer + order
+        # ------------------------------------------------
         customer_ref = (
             db.collection("OFM_name")
               .document(nameOfm)
@@ -1087,48 +1088,56 @@ def confirm_order():
               .document(userName)
         )
 
-        order_ref = customer_ref.collection("orders").document(orderId)
+        order_ref = (
+            customer_ref
+              .collection("orders")
+              .document(orderId)
+        )
 
         if not order_ref.get().exists:
-            return jsonify({
-                "success": False,
-                "error": "order not found"
-            }), 404
+            return jsonify({"success": False, "error": "order not found"}), 404
 
-        # 2) update order
+        # ------------------------------------------------
+        # 2) update order (confirm)
+        # ------------------------------------------------
         order_ref.update({
             "status": "orderconfirmed",
             "Preorder": 0,
             "confirmedAt": firestore.SERVER_TIMESTAMP
         })
 
+        # ------------------------------------------------
+        # 3) clear activeOrderId
+        # ------------------------------------------------
         customer_ref.update({"activeOrderId": ""})
 
-        # 3) update items + build partner_items จาก Firestore
-        items_ref = order_ref.collection("items")
-        items_stream = items_ref.stream()
-
-        batch = db.batch()
-        item_ids = []
+        # ------------------------------------------------
+        # 4) load items + แยกตาม Partnershop
+        # ------------------------------------------------
         partner_items = {}
+        total_price = 0
 
-        for item in items_stream:
-            item_data = item.to_dict() or {}
-            partnershop = item_data.get("partnershop")
+        for doc in order_ref.collection("items").stream():
+            itemId = doc.id
+            item   = doc.to_dict() or {}
 
-            item_ids.append(item.id)
+            partnershop = item.get("Partnershop")
+            if not partnershop:
+                continue
 
-            if partnershop:
-                partner_items.setdefault(partnershop, []).append(item.id)
+            price = float(item.get("priceproduct", 0))
+            qty   = int(item.get("numberproduct", 1))
+            total_price += price * qty
 
-            batch.update(item.reference, {
-                "status": "confirmed"
-            })
+            partner_items.setdefault(partnershop, {})
+            partner_items[partnershop][itemId] = item
 
-        if item_ids:
-            batch.commit()
+        if not partner_items:
+            return jsonify({"success": False, "error": "no items"}), 400
 
-        # 4) notify partner shops
+        # ------------------------------------------------
+        # 5) notification (logic เดิม)
+        # ------------------------------------------------
         for partnershop, items in partner_items.items():
             (
                 db.collection("OFM_name")
@@ -1143,16 +1152,17 @@ def confirm_order():
                       "orderId": orderId,
                       "nameOfm": nameOfm,
                       "userName": userName,
+                      "del_nameservice": del_nameservice,               
                       "partnershop": partnershop,
-                      "del_nameservice": del_nameservice,
-                      "pricedelivery": pricedelivery,
                       "items": items,
                       "read": False,
                       "createdAt": firestore.SERVER_TIMESTAMP
                   })
             )
 
-        # 5) save to delivery/{rider}/orders
+        # ------------------------------------------------
+        # 6) save to delivery/{rider}/orders/{orderId}
+        # ------------------------------------------------
         call_rider_ref = (
             db.collection("OFM_name")
               .document(nameOfm)
@@ -1162,7 +1172,7 @@ def confirm_order():
               .document(orderId)
         )
 
-        call_rider_ref.set({
+        call_rider_data = {
             "orderId": orderId,
             "username": userName,
             "pricedelivery": pricedelivery,
@@ -1170,45 +1180,53 @@ def confirm_order():
             "mandelivery": mandelivery,
             "status": "available",
             "createdAt": firestore.SERVER_TIMESTAMP
-        })
+        }
 
-        # 6) create costservice (ทุก partnershop)
-        for partnershop in partner_items.keys():
-            costservice_ref = (
-                db.collection("OFM_name")
-                  .document(nameOfm)
-                  .collection("partner")
-                  .document(partnershop)
-                  .collection("costservice")
-                  .document()
-            )
+        # ใส่ข้อมูลร้าน + itemID (มีรายละเอียด item)
+        for partnershop, items in partner_items.items():
+            shop_total = 0
+            shop_block = {
+                "order": "available"
+            }
 
-            costservice_ref.set({
-                "orderId": orderId,
-                "namerider": del_nameservice,
-                "mandelivery": mandelivery,
-                "pricedelivery": pricedelivery,
-                "transfer": "no",
-                "status": "open",
-                "created_at": firestore.SERVER_TIMESTAMP
-            })
+            for itemId, item in items.items():
+                price = float(item.get("priceproduct", 0))
+                qty   = int(item.get("numberproduct", 1))
+                shop_total += price * qty
 
-            costservice_ref.collection("orders").document(orderId).set({
-                "created_at": firestore.SERVER_TIMESTAMP
-            })
+                shop_block[itemId] = {
+                    "productname": item.get("productname", ""),
+                    "ProductDetail": item.get("ProductDetail", ""),
+                    "priceproduct": price,
+                    "numberproduct": qty,
+                    "image_url":  (  item.get("imageurl")
+                                      or item.get("image_url")
+                                      or item.get("imageUrl")   
+                                      )
+                                   
 
+
+                    #"prefare": "available"
+                }
+
+            shop_block["totalprice"] = shop_total
+            call_rider_data[partnershop] = shop_block
+
+        # ✅ เขียน Firestore แค่ครั้งเดียว
+        call_rider_ref.set(call_rider_data)
+
+        # ------------------------------------------------
+        # 7) response
+        # ------------------------------------------------
         return jsonify({
             "success": True,
             "partnerCount": len(partner_items),
-            "itemCount": len(item_ids)
+            "totalprice": total_price
         }), 200
 
     except Exception as e:
         traceback.print_exc()
-        return jsonify({
-            "success": False,
-            "error": str(e)
-        }), 500
+        return jsonify({"success": False, "error": str(e)}), 500
 
 #---------------------------------
 @app.route("/mark_partner_notification_read", methods=["POST"])
