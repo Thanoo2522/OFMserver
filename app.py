@@ -632,71 +632,12 @@ def update_item_status():
             return jsonify({"error": "no items in partnershop"}), 400
 
         # =====================================================
-        # 3️⃣ costservice (มีอยู่แล้วเท่านั้น)
-        # =====================================================
-        costservice_col = (
-            db.collection("OFM_name")
-              .document(ofmname)
-              .collection("partner")
-              .document(partnershop)
-              .collection("costservice")
-        )
-
-        cs_query = (
-            costservice_col
-            .where(filter=FieldFilter("transfer", "==", "no"))
-            .where(filter=FieldFilter("namerider", "==", namerider))
-            .limit(1)
-        )
-
-        cs_docs = list(cs_query.stream())
-        if not cs_docs:
-            return jsonify({"error": "costservice not found"}), 404
-
-        cs_ref = cs_docs[0].reference
-
-        # =====================================================
-        # 4️⃣ orders/{orderId}
-        # =====================================================
-        order_ref = cs_ref.collection("orders").document(order_id)
-        order_ref.set({
-            "updated_at": firestore.SERVER_TIMESTAMP
-        }, merge=True)
-
-        # =====================================================
-        # 5️⃣ items + คำนวณ totalcost (update อย่างเดียว)
-        # =====================================================
-        totalcost_add = 0
-
-        for item_id, item in items.items():
-            price = float(item.get("priceproduct", 0))
-            qty   = int(item.get("numberproduct", 0))
-
-            item_total = price * qty
-            totalcost_add += item_total
-
-            order_ref.collection("items").document(item_id).set({
-                "productname": item.get("productname"),
-                "ProductDetail": item.get("ProductDetail"),
-                "numberproduct": qty,
-                "priceproduct": price,
-                "totalprice": item_total,
-                "updated_at": firestore.SERVER_TIMESTAMP
-            }, merge=True)
-
-        # =====================================================
-        # 6️⃣ update totalcost (สะสม)
-        # =====================================================
-        cs_ref.update({
-            "totalcost": Increment(totalcost_add)
-        })
-
+  
         return jsonify({
             "success": True,
             "partnershop": partnershop,
             "updatedStatus": "ready",
-            "addCost": totalcost_add
-        }), 200
+           }), 200
 
     except Exception as e:
         print("🔥 update_item_status error:", e)
