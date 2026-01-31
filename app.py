@@ -621,17 +621,7 @@ def update_item_status():
             f"{partnershop}.order": "ready"
         })
 
-        delivery_data = delivery_order_ref.get().to_dict()
-        if not delivery_data:
-            return jsonify({"error": "delivery order not found"}), 404
-
-        shop_data = delivery_data.get(partnershop, {})
-        items = shop_data.get("items", {})
-
-        if not items:
-            return jsonify({"error": "no items in partnershop"}), 400
-
-        # =====================================================
+      # =====================================================
   
         return jsonify({
             "success": True,
