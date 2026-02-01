@@ -991,8 +991,7 @@ def get_notifications():
     return jsonify(result)
 
 #-----------------------------
-from google.cloud.firestore_v1 import Query
-app.route("/confirm_order", methods=["POST"])
+@app.route("/confirm_order", methods=["POST"])
 def confirm_order():
     try:
         # ------------------------------------------------
@@ -1030,7 +1029,7 @@ def confirm_order():
             return jsonify({"success": False, "error": "order not found"}), 404
 
         # ------------------------------------------------
-        # 2) update order
+        # 2) update order (confirm)
         # ------------------------------------------------
         order_ref.update({
             "status": "orderconfirmed",
@@ -1139,12 +1138,14 @@ def confirm_order():
             call_rider_data[partnershop] = shop_block
 
         call_rider_ref.set(call_rider_data)
-
         # ------------------------------------------------
-        # 6.1) save costservice (reuse STEMP if pay=not)
+        # 6.1) save costservice (STEMP logic)
         # ------------------------------------------------
         for partnershop, items in partner_items.items():
 
+            # -----------------------------
+            # 1) คำนวณราคาร้าน
+            # -----------------------------
             shop_total = 0
             for item in items.values():
                 shop_total += float(item.get("priceproduct", 0)) * int(item.get("numberproduct", 1))
@@ -1157,40 +1158,67 @@ def confirm_order():
                   .collection("costservice")
             )
 
+            # -----------------------------
+            # 2) หา STEMP ล่าสุด
+            # -----------------------------
             stemp_docs = (
                 costservice_col
-                .where("pay", "==", "not")
-                .order_by("createdAt", direction=Query.DESCENDING)
+                .order_by("createdAt", direction=firestore.Query.DESCENDING)
                 .limit(1)
                 .stream()
             )
 
-            stemp_doc = next(stemp_docs, None)
+            stemp_doc = None
+            for d in stemp_docs:
+                stemp_doc = d
+                break
 
+            # -----------------------------
+            # 3) ตัดสินใจใช้ STEMP เดิม / ใหม่
+            # -----------------------------
             if stemp_doc:
-                stempID = stemp_doc.id
+                stemp_data = stemp_doc.to_dict() or {}
+
+                if stemp_data.get("pay") == "not":
+                    # ✅ ใช้ STEMP เดิม
+                    stempID = stemp_doc.id
+                else:
+                    # ❌ pay == pass
+                    stempID = f"STEMP_{int(time.time())}"
             else:
+                # ❌ ยังไม่มี STEMP
                 stempID = f"STEMP_{int(time.time())}"
-                costservice_col.document(stempID).set({
+
+            stemp_ref = costservice_col.document(stempID)
+
+            # -----------------------------
+            # 4) init STEMP (ถ้าใหม่)
+            # -----------------------------
+            if not stemp_doc or stempID != stemp_doc.id:
+                stemp_ref.set({
                     "price_allorderID": 0,
                     "pay": "not",
                     "createdAt": firestore.SERVER_TIMESTAMP
                 })
 
-            costservice_col.document(stempID)\
-                .collection("orders")\
-                .document(orderId)\
-                .set({
-                    "orderId": orderId,
-                    "shopTotalPrice": shop_total,
-                    "pricedelivery": pricedelivery,
-                    "tranfer": "no",
-                    "createdAt": firestore.SERVER_TIMESTAMP
-                })
+            # -----------------------------
+            # 5) save order ใต้ STEMP
+            # -----------------------------
+            stemp_ref.collection("orders").document(orderId).set({
+                "orderId": orderId,
+                "shopTotalPrice": shop_total,
+                "pricedelivery": pricedelivery,
+                "tranfer": "no",
+                "createdAt": firestore.SERVER_TIMESTAMP
+            })
 
-            costservice_col.document(stempID).update({
+            # -----------------------------
+            # 6) update summary STEMP
+            # -----------------------------
+            stemp_ref.update({
                 "price_allorderID": firestore.Increment(shop_total)
             })
+
 
         # ------------------------------------------------
         # 7) response
@@ -1204,7 +1232,6 @@ def confirm_order():
     except Exception as e:
         traceback.print_exc()
         return jsonify({"success": False, "error": str(e)}), 500
-
 
 #---------------------------------
 @app.route("/mark_partner_notification_read", methods=["POST"])
