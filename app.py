@@ -1146,7 +1146,7 @@ def confirm_order():
         # ✅ เขียน Firestore แค่ครั้งเดียว
         call_rider_ref.set(call_rider_data)
     # ------------------------------------------------
-         # 6.1) save costservice with StempID (FIXED)
+        # 6.1) save costservice with StempID (ADD SHOP PRICE)
         # ------------------------------------------------
         firestoreID = del_nameservice
         stempID = f"STEMP_{int(time.time())}"
@@ -1155,13 +1155,34 @@ def confirm_order():
             "orderId": orderId,
             "pricedelivery": pricedelivery,
             "tranfer": "no",
-            "createdAt": firestore.SERVER_TIMESTAMP
+            "createdAt": firestore.SERVER_TIMESTAMP,
+
+            # ✅ ราคารวมทั้งหมดของทุกร้าน
+            "totalAllShopPrice": 0,
+
+            # ✅ ข้อมูลแต่ละร้าน
+            "shops": {}
         }
 
-        for partnershop in partner_items.keys():
-            costservice_data[partnershop] = {
+        total_all_shop_price = 0
+
+        for partnershop, items in partner_items.items():
+            shop_total = 0
+
+            for itemId, item in items.items():
+                price = float(item.get("priceproduct", 0))
+                qty   = int(item.get("numberproduct", 1))
+                shop_total += price * qty
+
+            costservice_data["shops"][partnershop] = {
+                "shopTotalPrice": shop_total,
+                "shopPrice": shop_total,
                 "prefare": "not"
             }
+
+            total_all_shop_price += shop_total
+
+        costservice_data["totalAllShopPrice"] = total_all_shop_price
 
         for partnershop in partner_items.keys():
             costservice_ref = (
@@ -1170,14 +1191,15 @@ def confirm_order():
                   .collection("partner")
                   .document(partnershop)
                   .collection("costservice")
-                  .document(firestoreID)      # ✅ document
-                  .collection("stemp")        # ✅ collection (คงที่)
-                  .document(stempID)          # ✅ document
-                  .collection("orders")       # ✅ collection
-                  .document(orderId)          # ✅ document
+                  .document(firestoreID)
+                  .collection("stemp")
+                  .document(stempID)
+                  .collection("orders")
+                  .document(orderId)
             )
 
             costservice_ref.set(costservice_data)
+
 
         # ------------------------------------------------
         # 7) response
