@@ -1067,7 +1067,7 @@ def confirm_order():
             return jsonify({"success": False, "error": "no items"}), 400
 
         # ------------------------------------------------
-        # 5) notification (logic เดิม)
+        # 5) notification
         # ------------------------------------------------
         for partnershop, items in partner_items.items():
             (
@@ -1083,7 +1083,7 @@ def confirm_order():
                       "orderId": orderId,
                       "nameOfm": nameOfm,
                       "userName": userName,
-                      "del_nameservice": del_nameservice,               
+                      "del_nameservice": del_nameservice,
                       "partnershop": partnershop,
                       "items": items,
                       "read": False,
@@ -1113,12 +1113,9 @@ def confirm_order():
             "createdAt": firestore.SERVER_TIMESTAMP
         }
 
-        # ใส่ข้อมูลร้าน + itemID (มีรายละเอียด item)
         for partnershop, items in partner_items.items():
             shop_total = 0
-            shop_block = {
-                "order": "available"
-            }
+            shop_block = {"order": "available"}
 
             for itemId, item in items.items():
                 price = float(item.get("priceproduct", 0))
@@ -1130,76 +1127,64 @@ def confirm_order():
                     "ProductDetail": item.get("ProductDetail", ""),
                     "priceproduct": price,
                     "numberproduct": qty,
-                    "image_url":  (  item.get("imageurl")
-                                      or item.get("image_url")
-                                      or item.get("imageUrl")   
-                                      )
-                                   
-
-
-                    #"prefare": "available"
+                    "image_url": (
+                        item.get("imageurl")
+                        or item.get("image_url")
+                        or item.get("imageUrl")
+                    )
                 }
 
             shop_block["totalprice"] = shop_total
             call_rider_data[partnershop] = shop_block
 
-        # ✅ เขียน Firestore แค่ครั้งเดียว
         call_rider_ref.set(call_rider_data)
-    # ------------------------------------------------
-        # 6.1) save costservice with StempID (ADD SHOP PRICE)
+
         # ------------------------------------------------
-        firestoreID = del_nameservice
+        # 6.1) save costservice (STEMP สะสม order)
+        # ------------------------------------------------
         stempID = f"STEMP_{int(time.time())}"
 
-        costservice_data = {
-            "orderId": orderId,
-            "pricedelivery": pricedelivery,
-            "tranfer": "no",
-            "createdAt": firestore.SERVER_TIMESTAMP,
-
-            # ✅ ราคารวมทั้งหมดของทุกร้าน
-            "totalAllShopPrice": 0,
-
-            # ✅ ข้อมูลแต่ละร้าน
-            "shops": {}
-        }
-
-        total_all_shop_price = 0
-
         for partnershop, items in partner_items.items():
+
             shop_total = 0
+            for item in items.values():
+                shop_total += float(item.get("priceproduct", 0)) * int(item.get("numberproduct", 1))
 
-            for itemId, item in items.items():
-                price = float(item.get("priceproduct", 0))
-                qty   = int(item.get("numberproduct", 1))
-                shop_total += price * qty
-
-            costservice_data["shops"][partnershop] = {
-                "shopTotalPrice": shop_total,
-                "shopPrice": shop_total,
-                "prefare": "not"
-            }
-
-            total_all_shop_price += shop_total
-
-        costservice_data["totalAllShopPrice"] = total_all_shop_price
-
-        for partnershop in partner_items.keys():
-            costservice_ref = (
+            # order ใต้ STEMP
+            cost_order_ref = (
                 db.collection("OFM_name")
                   .document(nameOfm)
                   .collection("partner")
                   .document(partnershop)
                   .collection("costservice")
-                  .document(firestoreID)
-                  .collection("stemp")
                   .document(stempID)
                   .collection("orders")
                   .document(orderId)
             )
 
-            costservice_ref.set(costservice_data)
+            cost_order_ref.set({
+                "orderId": orderId,
+                "shopTotalPrice": shop_total,
+                "pricedelivery": pricedelivery,
+                "tranfer": "no",
+                "createdAt": firestore.SERVER_TIMESTAMP
+            })
 
+            # summary STEMP
+            stemp_ref = (
+                db.collection("OFM_name")
+                  .document(nameOfm)
+                  .collection("partner")
+                  .document(partnershop)
+                  .collection("costservice")
+                  .document(stempID)
+            )
+
+            stemp_ref.set({
+                "price_allorderID": firestore.Increment(shop_total),
+                "pay": "not",
+                "createdAt": firestore.SERVER_TIMESTAMP
+            }, merge=True)
 
         # ------------------------------------------------
         # 7) response
