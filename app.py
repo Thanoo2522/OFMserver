@@ -1147,35 +1147,42 @@ def confirm_order():
         call_rider_ref.set(call_rider_data)
                  # ------------------------------------------------
         # 6.1) save costservice (1 order, many partnershop)
-        # ------------------------------------------------
+ 
         firestoreID = del_nameservice  # rider / service id
 
-        # เตรียม block หลักของ order
+        # 🔹 สร้าง StempID (รอบการเงิน)
+        stempID = f"STEMP_{int(time.time())}"
+
+        # 🔹 เตรียม block หลักของ order
         costservice_data = {
+            "orderId": orderId,
             "pricedelivery": pricedelivery,
             "tranfer": "no",
             "createdAt": firestore.SERVER_TIMESTAMP
         }
 
-        # ใส่ prefare แยกตาม partnershop
+        # 🔹 prefare แยกตาม partnershop
         for partnershop in partner_items.keys():
             costservice_data[partnershop] = {
                 "prefare": "not"
             }
 
-        # เขียน Firestore (order เดียว / หลายร้าน)
-        costservice_ref = (
-            db.collection("OFM_name")
-              .document(nameOfm)
-              .collection("partner")
-              .document(partnershop)  # ใช้ partner context เดิม
-              .collection("costservice")
-              .document(firestoreID)
-              .collection("orders")
-              .document(orderId)
-        )
+        # 🔹 เขียน Firestore แยกตามร้าน (แต่ใช้ stemp เดียวกัน)
+        for partnershop in partner_items.keys():
+            costservice_ref = (
+                db.collection("OFM_name")
+                  .document(nameOfm)
+                  .collection("partner")
+                  .document(partnershop)
+                  .collection("costservice")
+                  .document(firestoreID)
+                  .collection(stempID)          # ⭐ StempID
+                  .collection("orders")
+                  .document(orderId)
+            )
 
-        costservice_ref.set(costservice_data)
+            costservice_ref.set(costservice_data)
+
 
         # ------------------------------------------------
         # 7) response
