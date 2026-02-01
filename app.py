@@ -991,7 +991,8 @@ def get_notifications():
     return jsonify(result)
 
 #-----------------------------
-@app.route("/confirm_order", methods=["POST"])
+from google.cloud.firestore_v1 import Query
+app.route("/confirm_order", methods=["POST"])
 def confirm_order():
     try:
         # ------------------------------------------------
@@ -1029,7 +1030,7 @@ def confirm_order():
             return jsonify({"success": False, "error": "order not found"}), 404
 
         # ------------------------------------------------
-        # 2) update order (confirm)
+        # 2) update order
         # ------------------------------------------------
         order_ref.update({
             "status": "orderconfirmed",
@@ -1140,51 +1141,56 @@ def confirm_order():
         call_rider_ref.set(call_rider_data)
 
         # ------------------------------------------------
-        # 6.1) save costservice (STEMP สะสม order)
+        # 6.1) save costservice (reuse STEMP if pay=not)
         # ------------------------------------------------
-        stempID = f"STEMP_{int(time.time())}"
-
         for partnershop, items in partner_items.items():
 
             shop_total = 0
             for item in items.values():
                 shop_total += float(item.get("priceproduct", 0)) * int(item.get("numberproduct", 1))
 
-            # order ใต้ STEMP
-            cost_order_ref = (
+            costservice_col = (
                 db.collection("OFM_name")
                   .document(nameOfm)
                   .collection("partner")
                   .document(partnershop)
                   .collection("costservice")
-                  .document(stempID)
-                  .collection("orders")
-                  .document(orderId)
             )
 
-            cost_order_ref.set({
-                "orderId": orderId,
-                "shopTotalPrice": shop_total,
-                "pricedelivery": pricedelivery,
-                "tranfer": "no",
-                "createdAt": firestore.SERVER_TIMESTAMP
+            stemp_docs = (
+                costservice_col
+                .where("pay", "==", "not")
+                .order_by("createdAt", direction=Query.DESCENDING)
+                .limit(1)
+                .stream()
+            )
+
+            stemp_doc = next(stemp_docs, None)
+
+            if stemp_doc:
+                stempID = stemp_doc.id
+            else:
+                stempID = f"STEMP_{int(time.time())}"
+                costservice_col.document(stempID).set({
+                    "price_allorderID": 0,
+                    "pay": "not",
+                    "createdAt": firestore.SERVER_TIMESTAMP
+                })
+
+            costservice_col.document(stempID)\
+                .collection("orders")\
+                .document(orderId)\
+                .set({
+                    "orderId": orderId,
+                    "shopTotalPrice": shop_total,
+                    "pricedelivery": pricedelivery,
+                    "tranfer": "no",
+                    "createdAt": firestore.SERVER_TIMESTAMP
+                })
+
+            costservice_col.document(stempID).update({
+                "price_allorderID": firestore.Increment(shop_total)
             })
-
-            # summary STEMP
-            stemp_ref = (
-                db.collection("OFM_name")
-                  .document(nameOfm)
-                  .collection("partner")
-                  .document(partnershop)
-                  .collection("costservice")
-                  .document(stempID)
-            )
-
-            stemp_ref.set({
-                "price_allorderID": firestore.Increment(shop_total),
-                "pay": "not",
-                "createdAt": firestore.SERVER_TIMESTAMP
-            }, merge=True)
 
         # ------------------------------------------------
         # 7) response
@@ -1198,6 +1204,7 @@ def confirm_order():
     except Exception as e:
         traceback.print_exc()
         return jsonify({"success": False, "error": str(e)}), 500
+
 
 #---------------------------------
 @app.route("/mark_partner_notification_read", methods=["POST"])
