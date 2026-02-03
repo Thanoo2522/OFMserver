@@ -850,31 +850,36 @@ def get_prerider_orders():
             data = doc.to_dict()
             partner_shops = []
 
-            for key, value in data.items():
+            for shop_name, shop_data in data.items():
 
                 # ข้าม field system
-                if key in ["status", "username", "createdAt"]:
+                if shop_name in [
+                    "status", "username", "createdAt",
+                    "orderId", "pricedelivery",
+                    "mandelivery", "del_nameservice"
+                ]:
                     continue
 
-                # ร้านต้องเป็น dict
-                if not isinstance(value, dict):
+                if not isinstance(shop_data, dict):
                     continue
 
-                shop_name = key
-                shop_items = []
-                shop_order = None   # <-- order ระดับร้าน
+                # ✅ order อยู่ใต้ ShopName
+                shop_order = shop_data.get("order")
 
-                for item_id, item in value.items():
+                items = []
+
+                for item_id, item in shop_data.items():
+
+                    # ข้าม field ที่ไม่ใช่สินค้า
+                    if item_id in ["order", "totalprice"]:
+                        continue
+
                     if not isinstance(item, dict):
                         continue
 
-                    # ดึง order จาก item แรก
-                    if shop_order is None:
-                        shop_order = item.get("order")
-
-                    shop_items.append({
+                    items.append({
                         "productname": item.get("productname"),
-                        # เปิดเพิ่มได้
+                        # เปิดเพิ่มได้ถ้าต้องการ
                         # "numberproduct": item.get("numberproduct"),
                         # "priceproduct": item.get("priceproduct"),
                         # "image_url": item.get("image_url"),
@@ -883,7 +888,7 @@ def get_prerider_orders():
                 partner_shops.append({
                     "ShopName": shop_name,
                     "order": shop_order,
-                    "Items": shop_items
+                    "Items": items
                 })
 
             results.append({
@@ -897,6 +902,7 @@ def get_prerider_orders():
 
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+
 
 
 
