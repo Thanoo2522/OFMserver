@@ -846,33 +846,32 @@ def get_preprerider_orders():
         for doc in orders_ref.stream():
             data = doc.to_dict()
 
-            # ---------- items ----------
-            items = []
+            partner_shops = {}
 
-            for shop_name, shop_data in data.items():
-                if not isinstance(shop_data, dict):
+            for item in data.get("items", []):
+                shop = item.get("shop")
+                order_status = item.get("order")
+
+                if not shop:
                     continue
 
-                for _, product in shop_data.items():
-                    if not isinstance(product, dict):
-                        continue
+                # รวมร้านซ้ำ
+                partner_shops[shop] = {
+                    "ShopName": shop,
+                    "IsPrepared": order_status == "ready"
+                }
 
-                    items.append({
-                        "shop": shop_name,
-                        "order": product.get("order", 0)
-  
-                                      })
- 
             results.append({
                 "orderId": doc.id,
                 "createdAt": data.get("createdAt"),
-                "items": items
+                "PartnerShops": list(partner_shops.values())
             })
 
         return jsonify({"orders": results}), 200
 
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+
     #--------------------------------------------
 @app.route("/get_rider_orders", methods=["GET"])
 def get_rider_orders():
