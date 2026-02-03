@@ -823,6 +823,55 @@ def complete_delivery_order():
             "error": str(e)
         }), 500
 #--------------------------------------
+@app.route("/get_prerider_orders", methods=["GET"])
+def get_preprerider_orders():
+    try:
+        ofmname = request.args.get("ofmname")
+        delname = request.args.get("delname")
+
+        if not ofmname or not delname:
+            return jsonify({"error": "missing params"}), 400
+
+        orders_ref = (
+            db.collection("OFM_name")
+              .document(ofmname)
+              .collection("delivery")
+              .document(delname)
+              .collection("orders")
+              .where("status", "==", "available")
+        )
+
+        results = []
+
+        for doc in orders_ref.stream():
+            data = doc.to_dict()
+
+            # ---------- items ----------
+            items = []
+
+            for shop_name, shop_data in data.items():
+                if not isinstance(shop_data, dict):
+                    continue
+
+                for _, product in shop_data.items():
+                    if not isinstance(product, dict):
+                        continue
+
+                    items.append({
+                        "shop": shop_name,
+  
+                                      })
+ 
+            results.append({
+                "orderId": doc.id,
+                "status": data.get("status", ""), 
+            })
+
+        return jsonify({"orders": results}), 200
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+    #--------------------------------------------
 @app.route("/get_rider_orders", methods=["GET"])
 def get_rider_orders():
     try:
