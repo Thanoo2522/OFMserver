@@ -859,12 +859,14 @@ def get_preprerider_orders():
 
                     items.append({
                         "shop": shop_name,
+                        "order": product.get("order", 0)
   
                                       })
  
             results.append({
                 "orderId": doc.id,
-                "status": data.get("status", ""), 
+                "createdAt": data.get("createdAt"),
+                "items": items
             })
 
         return jsonify({"orders": results}), 200
