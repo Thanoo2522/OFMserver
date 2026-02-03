@@ -850,22 +850,30 @@ def get_prerider_orders():
             partner_shops = []
 
             for key, value in data.items():
+
                 # ข้าม field ที่ไม่ใช่ร้าน
                 if key in ["status", "username", "createdAt"]:
+                    continue
+
+                # ร้านต้องเป็น dict เท่านั้น
+                if not isinstance(value, dict):
                     continue
 
                 shop_name = key
                 shop_items = []
 
-                # value คือ dict ของสินค้าในร้านนั้น
                 for item_id, item in value.items():
+                    if not isinstance(item, dict):
+                        continue
+
                     shop_items.append({
                         "productname": item.get("productname"),
-                       # "ProductDetail": item.get("ProductDetail"),
-                      #  "numberproduct": item.get("numberproduct"),
-                       # "priceproduct": item.get("priceproduct"),
-                       # "image_url": item.get("image_url"),
-                        "order": item.get("order")
+                        "order": item.get("order"),
+                        # เปิดใช้เพิ่มได้ถ้าต้องการ
+                        # "ProductDetail": item.get("ProductDetail"),
+                        # "numberproduct": item.get("numberproduct"),
+                        # "priceproduct": item.get("priceproduct"),
+                        # "image_url": item.get("image_url"),
                     })
 
                 partner_shops.append({
@@ -884,6 +892,7 @@ def get_prerider_orders():
 
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+
 
     #--------------------------------------------
 @app.route("/get_rider_orders", methods=["GET"])
