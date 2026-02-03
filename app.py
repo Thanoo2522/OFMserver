@@ -822,9 +822,11 @@ def complete_delivery_order():
             "success": False,
             "error": str(e)
         }), 500
-#--------------------------------------
+
+
+
 @app.route("/get_prerider_orders", methods=["GET"])
-def get_preprerider_orders():
+def get_prerider_orders():
     try:
         ofmname = request.args.get("ofmname")
         delname = request.args.get("delname")
@@ -845,26 +847,37 @@ def get_preprerider_orders():
 
         for doc in orders_ref.stream():
             data = doc.to_dict()
+            partner_shops = []
 
-            partner_shops = {}
-
-            for item in data.get("items", []):
-                shop = item.get("shop")
-                order_status = item.get("order")
-
-                if not shop:
+            for key, value in data.items():
+                # ข้าม field ที่ไม่ใช่ร้าน
+                if key in ["status", "username", "createdAt"]:
                     continue
 
-                # รวมร้านซ้ำ
-                partner_shops[shop] = {
-                    "ShopName": shop,
-                    "IsPrepared": order_status == "ready"
-                }
+                shop_name = key
+                shop_items = []
+
+                # value คือ dict ของสินค้าในร้านนั้น
+                for item_id, item in value.items():
+                    shop_items.append({
+                        "productname": item.get("productname"),
+                       # "ProductDetail": item.get("ProductDetail"),
+                      #  "numberproduct": item.get("numberproduct"),
+                       # "priceproduct": item.get("priceproduct"),
+                       # "image_url": item.get("image_url"),
+                        "order": item.get("order")
+                    })
+
+                partner_shops.append({
+                    "ShopName": shop_name,
+                    "Items": shop_items
+                })
 
             results.append({
                 "orderId": doc.id,
                 "createdAt": data.get("createdAt"),
-                "PartnerShops": list(partner_shops.values())
+                "username": data.get("username"),
+                "PartnerShops": partner_shops
             })
 
         return jsonify({"orders": results}), 200
