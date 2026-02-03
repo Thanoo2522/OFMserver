@@ -825,6 +825,7 @@ def complete_delivery_order():
 
 
 
+#************************************************
 @app.route("/get_prerider_orders", methods=["GET"])
 def get_prerider_orders():
     try:
@@ -851,26 +852,29 @@ def get_prerider_orders():
 
             for key, value in data.items():
 
-                # ข้าม field ที่ไม่ใช่ร้าน
+                # ข้าม field system
                 if key in ["status", "username", "createdAt"]:
                     continue
 
-                # ร้านต้องเป็น dict เท่านั้น
+                # ร้านต้องเป็น dict
                 if not isinstance(value, dict):
                     continue
 
                 shop_name = key
                 shop_items = []
+                shop_order = None   # <-- order ระดับร้าน
 
                 for item_id, item in value.items():
                     if not isinstance(item, dict):
                         continue
 
+                    # ดึง order จาก item แรก
+                    if shop_order is None:
+                        shop_order = item.get("order")
+
                     shop_items.append({
                         "productname": item.get("productname"),
-                        "order": item.get("order"),
-                        # เปิดใช้เพิ่มได้ถ้าต้องการ
-                        # "ProductDetail": item.get("ProductDetail"),
+                        # เปิดเพิ่มได้
                         # "numberproduct": item.get("numberproduct"),
                         # "priceproduct": item.get("priceproduct"),
                         # "image_url": item.get("image_url"),
@@ -878,6 +882,7 @@ def get_prerider_orders():
 
                 partner_shops.append({
                     "ShopName": shop_name,
+                    "order": shop_order,
                     "Items": shop_items
                 })
 
@@ -892,6 +897,7 @@ def get_prerider_orders():
 
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+
 
 
     #--------------------------------------------
