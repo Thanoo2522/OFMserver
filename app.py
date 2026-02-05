@@ -1098,17 +1098,19 @@ def get_notifications():
         })
 
     return jsonify(result)
+
+ 
 #--------------------------------------------
 @app.route("/get_costservice_orders", methods=["GET"])
 def get_costservice_orders():
     try:
-        ofmname = request.args.get("ofmname")
-        delname = request.args.get("delname")
+        ofmname = request.args.get("Ofmname")
+        nameshop = request.args.get("partnershop")
 
-        if not ofmname or not delname:
+        if not ofmname or not nameshop:
             return jsonify({
                 "success": False,
-                "error": "missing ofmname or delname"
+                "error": "missing ofmname or nameshop"
             }), 400
 
         data = []
@@ -1117,7 +1119,7 @@ def get_costservice_orders():
             db.collection("OFM_name")
             .document(ofmname)
             .collection("partner")
-            .document(delname)
+            .document(nameshop)
             .collection("costservice")
             .stream()
         )
@@ -1140,7 +1142,7 @@ def get_costservice_orders():
 
                 data.append({
                     "ofmname": ofmname,
-                    "partnershop": delname,
+                    "partnershop": nameshop,
                     "stempID": stemp_id,
                     "orderID": order_doc.id,
                     "createdAt": created_at,
