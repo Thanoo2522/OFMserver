@@ -1311,6 +1311,17 @@ def confirm_order():
                     "createdAt": firestore.SERVER_TIMESTAMP
                 })
             costservice_thisorder = calc_costservice(shop_total)
+            #--------------ลดข้อมูลของ items--------------
+            decitems = {}
+
+            for itemId, item in items.items():
+                 decitems[itemId] = {
+                 "productname": item.get("productname", ""),
+                  "ProductDetail": item.get("ProductDetail", ""),
+                 "priceproduct": float(item.get("priceproduct", 0)),
+                     "numberproduct": int(item.get("numberproduct", 1)),
+                     "username": userName
+                        }
             # -----------------------------
             # 5) save order ใต้ STEMP
             # -----------------------------
@@ -1318,7 +1329,7 @@ def confirm_order():
                 "orderId": orderId,
                 "Price_orderid": shop_total,
                 "costservice_thisorder": costservice_thisorder,
-                 "items": items,
+                 "items":decitems,
                 #"pricedelivery": pricedelivery,
                 #"tranfer": "no",
                 "createdAt": firestore.SERVER_TIMESTAMP
