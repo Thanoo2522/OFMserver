@@ -1306,6 +1306,7 @@ def confirm_order():
             if not stemp_doc or stempID != stemp_doc.id:
                 stemp_ref.set({
                     "price_allorderID": 0,
+                    "costservice_allorderID":0,
                     "pay": "not",
                     "createdAt": firestore.SERVER_TIMESTAMP
                 })
@@ -1326,8 +1327,10 @@ def confirm_order():
             # 6) update summary STEMP
             # -----------------------------
             stemp_ref.update({
-                "price_allorderID": firestore.Increment(shop_total)
-            })
+                     "price_allorderID": firestore.Increment(shop_total),
+                         "costservice_allorderID": firestore.Increment(costservice_thisorder)
+                            })
+
 
 
         # ------------------------------------------------
