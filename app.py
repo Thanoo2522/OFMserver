@@ -1309,13 +1309,14 @@ def confirm_order():
                     "pay": "not",
                     "createdAt": firestore.SERVER_TIMESTAMP
                 })
-
+            costservice_thisorder = calc_costservice(shop_total)
             # -----------------------------
             # 5) save order ใต้ STEMP
             # -----------------------------
             stemp_ref.collection("orders").document(orderId).set({
                 "orderId": orderId,
                 "Price_orderid": shop_total,
+                costservice_thisorder": costservice_thisorder,
                 #"pricedelivery": pricedelivery,
                 #"tranfer": "no",
                 "createdAt": firestore.SERVER_TIMESTAMP
