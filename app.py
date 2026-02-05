@@ -1311,21 +1311,24 @@ def confirm_order():
                 })
 
             # -----------------------------
-                # -----------------------------
-                # 5) คำนวณ costservice จาก RTDB
-                    # -----------------------------
-                costservice_thisorder = calc_costservice(shop_total)
-
-                # -----------------------------
-                # 6) save order ใต้ STEMP
-                # -----------------------------
-                stemp_ref.collection("orders").document(orderId).set({
+            # 5) save order ใต้ STEMP
+            # -----------------------------
+            stemp_ref.collection("orders").document(orderId).set({
                 "orderId": orderId,
                 "Price_orderid": shop_total,
-                "costservice_thisorder": costservice_thisorder,
+                #"pricedelivery": pricedelivery,
+                #"tranfer": "no",
                 "createdAt": firestore.SERVER_TIMESTAMP
-                  })
-          
+            })
+
+            # -----------------------------
+            # 6) update summary STEMP
+            # -----------------------------
+            stemp_ref.update({
+                "price_allorderID": firestore.Increment(shop_total)
+            })
+
+
         # ------------------------------------------------
         # 7) response
         # ------------------------------------------------
