@@ -1104,8 +1104,8 @@ def get_notifications():
 @app.route("/get_costservice_orders", methods=["GET"])
 def get_costservice_orders():
     try:
-        ofmname = request.args.get("Ofmname")
-        nameshop = request.args.get("partnershop")
+        ofmname = request.args.get("ofmname")
+        nameshop = request.args.get("nameshop")
 
         if not ofmname or not nameshop:
             return jsonify({
@@ -1162,6 +1162,7 @@ def get_costservice_orders():
             "success": False,
             "error": str(e)
         }), 500
+
 
 
 
