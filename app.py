@@ -1102,59 +1102,51 @@ def get_notifications():
 @app.route("/get_costservice_orders", methods=["GET"])
 def get_costservice_orders():
     try:
+        ofmname = request.args.get("ofmname")
+        delname = request.args.get("delname")
+
+        if not ofmname or not delname:
+            return jsonify({
+                "success": False,
+                "error": "missing ofmname or delname"
+            }), 400
+
         data = []
 
-        ofm_docs = db.collection("OFM_name").stream()
+        costservice_docs = (
+            db.collection("OFM_name")
+            .document(ofmname)
+            .collection("partner")
+            .document(delname)
+            .collection("costservice")
+            .stream()
+        )
 
-        for ofm_doc in ofm_docs:
-            ofm_name = ofm_doc.id
+        for stemp_doc in costservice_docs:
+            stemp_id = stemp_doc.id
 
-            partner_docs = (
-                db.collection("OFM_name")
-                .document(ofm_name)
-                .collection("partner")
+            orders_docs = (
+                stemp_doc.reference
+                .collection("orders")
                 .stream()
             )
 
-            for partner_doc in partner_docs:
-                partner_name = partner_doc.id
+            for order_doc in orders_docs:
+                order = order_doc.to_dict()
 
-                stemp_docs = (
-                    db.collection("OFM_name")
-                    .document(ofm_name)
-                    .collection("partner")
-                    .document(partner_name)
-                    .collection("costservice")
-                    .where("pay", "==", "not")
-                    .stream()
-                )
+                created_at = order.get("createdAt")
+                if created_at:
+                    created_at = created_at.strftime("%Y-%m-%d %H:%M")
 
-                for stemp_doc in stemp_docs:
-                    stemp_data = stemp_doc.to_dict()
-                    stemp_id = stemp_doc.id
-
-                    orders_ref = (
-                        stemp_doc.reference
-                        .collection("orders")
-                        .where("costservice_thisorder", ">", 0)
-                    )
-
-                    for order_doc in orders_ref.stream():
-                        order = order_doc.to_dict()
-
-                        created_at = order.get("createdAt")
-                        if created_at:
-                            created_at = created_at.strftime("%Y-%m-%d %H:%M")
-
-                        data.append({
-                            "ofmname": ofm_name,
-                            "partnershop": partner_name,
-                            "stempID": stemp_id,
-                            "orderID": order_doc.id,
-                            "createdAt": created_at,
-                            "costservice_thisorder": order.get("costservice_thisorder", 0),
-                            "items": order.get("items", {})
-                        })
+                data.append({
+                    "ofmname": ofmname,
+                    "partnershop": delname,
+                    "stempID": stemp_id,
+                    "orderID": order_doc.id,
+                    "createdAt": created_at,
+                    "costservice_thisorder": order.get("costservice_thisorder", 0),
+                    "items": order.get("items", {})
+                })
 
         return jsonify({
             "success": True,
@@ -1168,6 +1160,7 @@ def get_costservice_orders():
             "success": False,
             "error": str(e)
         }), 500
+
 
 
 #-----------------------------
