@@ -1318,6 +1318,7 @@ def confirm_order():
                 "orderId": orderId,
                 "Price_orderid": shop_total,
                 "costservice_thisorder": costservice_thisorder,
+                 "items": items,
                 #"pricedelivery": pricedelivery,
                 #"tranfer": "no",
                 "createdAt": firestore.SERVER_TIMESTAMP
