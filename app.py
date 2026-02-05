@@ -1316,7 +1316,7 @@ def confirm_order():
             stemp_ref.collection("orders").document(orderId).set({
                 "orderId": orderId,
                 "Price_orderid": shop_total,
-                costservice_thisorder": costservice_thisorder,
+                "costservice_thisorder": costservice_thisorder,
                 #"pricedelivery": pricedelivery,
                 #"tranfer": "no",
                 "createdAt": firestore.SERVER_TIMESTAMP
