@@ -75,7 +75,32 @@ def build_prefixes(text: str):
         current += ch
         prefixes.append(current)
     return prefixes
+#************************ ค่าบริการระบ คิดกับร้านค้า **************** 
+def calc_costservice(shop_total: float):
+    """
+    อ่าน costservice_shop จาก RTDB
+    format: 'min,percent,max'
+    """
+    raw = rtdb_ref.child("costservice_shop").get()
 
+    if not raw:
+        return 0  # fallback ปลอดภัย
+
+    try:
+        min_v, percent_v, max_v = map(float, str(raw).split(","))
+
+        cost = shop_total * (percent_v / 100.0)
+
+        if cost < min_v:
+            cost = min_v
+        elif cost > max_v:
+            cost = max_v
+
+        return round(cost, 2)
+
+    except Exception:
+        return 0
+#---------------------------------------------------------------
 
 @firestore.transactional
 def update_qty(transaction, ref, delta):
@@ -1286,24 +1311,21 @@ def confirm_order():
                 })
 
             # -----------------------------
-            # 5) save order ใต้ STEMP
-            # -----------------------------
-            stemp_ref.collection("orders").document(orderId).set({
+                # -----------------------------
+                # 5) คำนวณ costservice จาก RTDB
+                    # -----------------------------
+                costservice_thisorder = calc_costservice(shop_total)
+
+                # -----------------------------
+                # 6) save order ใต้ STEMP
+                # -----------------------------
+                stemp_ref.collection("orders").document(orderId).set({
                 "orderId": orderId,
-                "shopTotalPrice": shop_total,
-                "pricedelivery": pricedelivery,
-                "tranfer": "no",
+                "Price_orderid": shop_total,
+                "costservice_thisorder": costservice_thisorder,
                 "createdAt": firestore.SERVER_TIMESTAMP
-            })
-
-            # -----------------------------
-            # 6) update summary STEMP
-            # -----------------------------
-            stemp_ref.update({
-                "price_allorderID": firestore.Increment(shop_total)
-            })
-
-
+                  })
+          
         # ------------------------------------------------
         # 7) response
         # ------------------------------------------------
