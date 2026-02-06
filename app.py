@@ -1146,6 +1146,7 @@ def get_costservice_orders():
                     "stempID": stemp_id,
                     "orderID": order_doc.id,
                     "createdAt": created_at,
+                    "pay": order.get("pay", "not"),   # 👈 เพิ่ม
                     "costservice_thisorder": order.get("costservice_thisorder", 0),
                     "items": order.get("items", {})
                 })
