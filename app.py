@@ -1108,12 +1108,9 @@ def get_costservice_orders():
         nameshop = request.args.get("nameshop")
 
         if not ofmname or not nameshop:
-            return jsonify({
-                "success": False,
-                "error": "missing ofmname or nameshop"
-            }), 400
+            return jsonify({"success": False, "error": "missing params"}), 400
 
-        data = []
+        result = []
 
         costservice_docs = (
             db.collection("OFM_name")
@@ -1125,14 +1122,15 @@ def get_costservice_orders():
         )
 
         for stemp_doc in costservice_docs:
-            stemp_id = stemp_doc.id
+            stemp_data = stemp_doc.to_dict()
 
-            orders_docs = (
-                stemp_doc.reference
-                .collection("orders")
-                .stream()
-            )
+            start_created_at = stemp_data.get("start_createdAt")
+            if start_created_at:
+                start_created_at = start_created_at.strftime("%Y-%m-%d %H:%M")
 
+            orders = []
+
+            orders_docs = stemp_doc.reference.collection("orders").stream()
             for order_doc in orders_docs:
                 order = order_doc.to_dict()
 
@@ -1140,29 +1138,23 @@ def get_costservice_orders():
                 if created_at:
                     created_at = created_at.strftime("%Y-%m-%d %H:%M")
 
-                data.append({
-                    "ofmname": ofmname,
-                    "partnershop": nameshop,
-                    "stempID": stemp_id,
+                orders.append({
                     "orderID": order_doc.id,
                     "createdAt": created_at,
-                    "pay": order.get("pay", "not"),   # 👈 เพิ่ม
-                    "costservice_thisorder": order.get("costservice_thisorder", 0),
                     "items": order.get("items", {})
                 })
 
-        return jsonify({
-            "success": True,
-            "orders": data
-        }), 200
+            result.append({
+                "stempID": stemp_doc.id,
+                "pay": stemp_data.get("pay", "not"),
+                "start_createdAt": start_created_at,
+                "orders": orders
+            })
+
+        return jsonify({"success": True, "data": result}), 200
 
     except Exception as e:
-        import traceback
-        traceback.print_exc()
-        return jsonify({
-            "success": False,
-            "error": str(e)
-        }), 500
+        return jsonify({"success": False, "error": str(e)}), 500
 
 
 
