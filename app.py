@@ -1148,6 +1148,8 @@ def get_costservice_orders():
                 "stempID": stemp_doc.id,
                 "pay": stemp_data.get("pay", "not"),
                 "start_createdAt": start_created_at,
+                "price_allorderID": stemp_data.get("price_allorderID"), # ราคารวม order ทั้งหมด
+                "costservice_allorderID": stemp_data.get("costservice_allorderID"),# ราคาค่าบริการระบบ ดูจาก realtim database
                 "orders": orders
             })
 
