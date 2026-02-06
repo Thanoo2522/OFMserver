@@ -1307,14 +1307,13 @@ def confirm_order():
             call_rider_data[partnershop] = shop_block
 
         call_rider_ref.set(call_rider_data)
+
         # ------------------------------------------------
         # 6.1) save costservice (STEMP logic)
         # ------------------------------------------------
         for partnershop, items in partner_items.items():
 
-            # -----------------------------
             # 1) คำนวณราคาร้าน
-            # -----------------------------
             shop_total = 0
             for item in items.values():
                 shop_total += float(item.get("priceproduct", 0)) * int(item.get("numberproduct", 1))
@@ -1327,83 +1326,58 @@ def confirm_order():
                   .collection("costservice")
             )
 
-            # -----------------------------
-            # 2) หา STEMP ล่าสุด
-            # -----------------------------
-            stemp_docs = (
+            # 2) หา STEMP ที่ pay = not
+            stemp_doc = None
+            stemp_not_docs = (
                 costservice_col
-                .order_by("createdAt", direction=firestore.Query.DESCENDING)
+                .where("pay", "==", "not")
                 .limit(1)
                 .stream()
             )
 
-            stemp_doc = None
-            for d in stemp_docs:
+            for d in stemp_not_docs:
                 stemp_doc = d
                 break
 
-            # -----------------------------
-            # 3) ตัดสินใจใช้ STEMP เดิม / ใหม่
-            # -----------------------------
+            # 3) ใช้ STEMP เดิม หรือสร้างใหม่
             if stemp_doc:
-                stemp_data = stemp_doc.to_dict() or {}
-
-                if stemp_data.get("pay") == "not":
-                    # ✅ ใช้ STEMP เดิม
-                    stempID = stemp_doc.id
-                else:
-                    # ❌ pay == pass
-                    stempID = f"STEMP_{int(time.time())}"
+                stemp_ref = stemp_doc.reference
             else:
-                # ❌ ยังไม่มี STEMP
-                stempID = f"STEMP_{int(time.time())}"
-
-            stemp_ref = costservice_col.document(stempID)
-
-            # -----------------------------
-            # 4) init STEMP (ถ้าใหม่)
-            # -----------------------------
-            if not stemp_doc or stempID != stemp_doc.id:
+                stemp_ref = costservice_col.document(f"STEMP_{int(time.time())}")
                 stemp_ref.set({
                     "price_allorderID": 0,
-                    "costservice_allorderID":0,
+                    "costservice_allorderID": 0,
                     "pay": "not",
                     "start_createdAt": firestore.SERVER_TIMESTAMP
                 })
-            costservice_thisorder = calc_costservice(shop_total)
-            #--------------ลดข้อมูลของ items--------------
-            decitems = {}
 
+            costservice_thisorder = calc_costservice(shop_total)
+
+            # 4) ลดข้อมูล items
+            decitems = {}
             for itemId, item in items.items():
-                 decitems[itemId] = {
-                 "productname": item.get("productname", ""),
-                  "ProductDetail": item.get("ProductDetail", ""),
-                 "priceproduct": float(item.get("priceproduct", 0)),
-                     "numberproduct": int(item.get("numberproduct", 1)),
-                     "username": userName
-                        }
-            # -----------------------------
+                decitems[itemId] = {
+                    "productname": item.get("productname", ""),
+                    "ProductDetail": item.get("ProductDetail", ""),
+                    "priceproduct": float(item.get("priceproduct", 0)),
+                    "numberproduct": int(item.get("numberproduct", 1)),
+                    "username": userName
+                }
+
             # 5) save order ใต้ STEMP
-            # -----------------------------
             stemp_ref.collection("orders").document(orderId).set({
                 "orderId": orderId,
                 "Price_orderid": shop_total,
                 "costservice_thisorder": costservice_thisorder,
-                 "items":decitems,
-                #"pricedelivery": pricedelivery,
-                #"tranfer": "no",
+                "items": decitems,
                 "createdAt": firestore.SERVER_TIMESTAMP
             })
 
-            # -----------------------------
-            # 6) update summary STEMP
-            # -----------------------------
+            # 6) update summary
             stemp_ref.update({
-                     "price_allorderID": firestore.Increment(shop_total),
-                         "costservice_allorderID": firestore.Increment(costservice_thisorder)
-                            })
-
-
+                "price_allorderID": firestore.Increment(shop_total),
+                "costservice_allorderID": firestore.Increment(costservice_thisorder)
+            })
 
         # ------------------------------------------------
         # 7) response
@@ -1417,6 +1391,7 @@ def confirm_order():
     except Exception as e:
         traceback.print_exc()
         return jsonify({"success": False, "error": str(e)}), 500
+
 
 #---------------------------------
 @app.route("/mark_partner_notification_read", methods=["POST"])
