@@ -1185,17 +1185,27 @@ def get_costrider():
         if not nameOfm or not del_nameservice:
             return jsonify([]), 200
 
+        # ------------------------------------------------
+        # path:
+        # OFM_name/{nameOfm}/delivery/{del}/costservice
+        # ------------------------------------------------
         costservice_col = (
             db.collection("OFM_name")
               .document(nameOfm)
               .collection("delivery")
               .document(del_nameservice)
               .collection("costservice")
-              .order_by("start_createdAt", direction=firestore.Query.DESCENDING)
+              .order_by(
+                  "start_createdAt",
+                  direction=firestore.Query.DESCENDING
+              )
         )
 
         result = []
 
+        # ========================================================
+        # LOOP STEMP
+        # ========================================================
         for stemp_doc in costservice_col.stream():
             stemp = stemp_doc.to_dict() or {}
 
@@ -1212,14 +1222,35 @@ def get_costrider():
                 "Orders": []
             }
 
+            # ------------------------------------------------
+            # orders under STEMP
+            # ------------------------------------------------
             orders_ref = (
                 stemp_doc.reference
                 .collection("orders")
-                .order_by("createdAt", direction=firestore.Query.DESCENDING)
+                .order_by(
+                    "createdAt",
+                    direction=firestore.Query.DESCENDING
+                )
             )
 
+            # ====================================================
+            # LOOP ORDER
+            # ====================================================
             for order_doc in orders_ref.stream():
                 order = order_doc.to_dict() or {}
+
+                # ---------------- items (dict → list) ----------------
+                items_list = []
+                raw_items = order.get("items", {})
+
+                for item in raw_items.values():
+                    items_list.append({
+                        "productname": item.get("productname", ""),
+                        "ProductDetail": item.get("ProductDetail", ""),
+                        "priceproduct": float(item.get("priceproduct", 0)),
+                        "numberproduct": int(item.get("numberproduct", 1))
+                    })
 
                 stemp_data["Orders"].append({
                     "orderId": order.get("orderId"),
@@ -1230,7 +1261,7 @@ def get_costrider():
                         if order.get("createdAt")
                         else None
                     ),
-                    "items": order.get("items", {})
+                    "Items": items_list
                 })
 
             result.append(stemp_data)
@@ -1239,7 +1270,11 @@ def get_costrider():
 
     except Exception as e:
         traceback.print_exc()
-        return jsonify({"success": False, "error": str(e)}), 500
+        return jsonify({
+            "success": False,
+            "error": str(e)
+        }), 500
+
 
 
 #-----------------------------
