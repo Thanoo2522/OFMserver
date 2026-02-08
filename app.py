@@ -100,6 +100,22 @@ def calc_costservice(shop_total: float):
 
     except Exception:
         return 0
+
+#************************ ค่าบริการระบ คิดกับ rider **************** 
+def calc_costrider(price_total: float) -> float:
+    try:
+        percent = rtdb_ref.child("costservice_rider").get()
+
+        if percent is None:
+            return 0
+
+        percent = float(percent)  # รองรับ "10" หรือ 10
+        return round(price_total * percent / 100, 2)
+
+    except Exception as e:
+        print("calc_costrider error:", e)
+        return 0
+
 #---------------------------------------------------------------
 
 @firestore.transactional
@@ -1380,6 +1396,77 @@ def confirm_order():
                 "price_allorderID": firestore.Increment(shop_total),
                 "costservice_allorderID": firestore.Increment(costservice_thisorder)
             })
+                 # ------------------------------------------------
+        # 6.2) save costservice สำหรับ delivery (โครงสร้างเหมือน partner)
+        # ------------------------------------------------
+        for partnershop, items in partner_items.items():
+
+            # 1) คำนวณราคาร้าน
+            shop_total = 0
+            for item in items.values():
+                shop_total += float(item.get("priceproduct", 0)) * int(item.get("numberproduct", 1))
+
+            delivery_costservice_col = (
+                db.collection("OFM_name")
+                  .document(nameOfm)
+                  .collection("delivery")
+                  .document(del_nameservice)
+                  .collection("costservice")
+            )
+
+            # 2) หา STEMP ที่ pay = not
+            stemp_doc = None
+            stemp_not_docs = (
+                delivery_costservice_col
+                .where("pay", "==", "not")
+                .limit(1)
+                .stream()
+            )
+
+            for d in stemp_not_docs:
+                stemp_doc = d
+                break
+
+            # 3) ใช้ STEMP เดิม หรือสร้างใหม่
+            if stemp_doc:
+                stemp_ref = stemp_doc.reference
+            else:
+                stemp_ref = delivery_costservice_col.document(f"STEMP_{int(time.time())}")
+                stemp_ref.set({
+                    "price_allorderID": 0,
+                    "costrider_allorderID": 0,
+                    "pay": "not",
+                    "start_createdAt": firestore.SERVER_TIMESTAMP
+                })
+
+            costrider_thisorder = calc_costrider(shop_total)
+
+            # 4) ลดข้อมูล items
+            decitems = {}
+            for itemId, item in items.items():
+                decitems[itemId] = {
+                    "productname": item.get("productname", ""),
+                    "ProductDetail": item.get("ProductDetail", ""),
+                    "priceproduct": float(item.get("priceproduct", 0)),
+                    "numberproduct": int(item.get("numberproduct", 1)),
+                    "username": userName
+                }
+
+            # 5) save order ใต้ STEMP
+            stemp_ref.collection("orders").document(orderId).set({
+                "orderId": orderId,
+                "Price_orderid": shop_total,
+                "costrider_thisorder": costrider_thisorder,
+                "items": decitems,
+                "createdAt": firestore.SERVER_TIMESTAMP
+            })
+
+            # 6) update summary
+            stemp_ref.update({
+                "price_allorderID": firestore.Increment(shop_total),
+                "costrider_allorderID": firestore.Increment(costrider_thisorder)
+            })
+   
 
         # ------------------------------------------------
         # 7) response
