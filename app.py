@@ -1175,6 +1175,71 @@ def get_costservice_orders():
         return jsonify({"success": False, "error": str(e)}), 500
 
 
+#--------------------------------
+@app.route("/get_costrider", methods=["GET"])
+def get_costrider():
+    try:
+        nameOfm = request.args.get("nameOfm")
+        del_nameservice = request.args.get("del_nameservice")
+
+        if not nameOfm or not del_nameservice:
+            return jsonify([]), 200
+
+        costservice_col = (
+            db.collection("OFM_name")
+              .document(nameOfm)
+              .collection("delivery")
+              .document(del_nameservice)
+              .collection("costservice")
+              .order_by("start_createdAt", direction=firestore.Query.DESCENDING)
+        )
+
+        result = []
+
+        for stemp_doc in costservice_col.stream():
+            stemp = stemp_doc.to_dict() or {}
+
+            stemp_data = {
+                "stempId": stemp_doc.id,
+                "price_allorderID": float(stemp.get("price_allorderID", 0)),
+                "costrider_allorderID": float(stemp.get("costrider_allorderID", 0)),
+                "pay": stemp.get("pay", "not"),
+                "start_createdAt": (
+                    stemp.get("start_createdAt").timestamp()
+                    if stemp.get("start_createdAt")
+                    else None
+                ),
+                "Orders": []
+            }
+
+            orders_ref = (
+                stemp_doc.reference
+                .collection("orders")
+                .order_by("createdAt", direction=firestore.Query.DESCENDING)
+            )
+
+            for order_doc in orders_ref.stream():
+                order = order_doc.to_dict() or {}
+
+                stemp_data["Orders"].append({
+                    "orderId": order.get("orderId"),
+                    "Price_orderid": float(order.get("Price_orderid", 0)),
+                    "costrider_thisorder": float(order.get("costrider_thisorder", 0)),
+                    "createdAt": (
+                        order.get("createdAt").timestamp()
+                        if order.get("createdAt")
+                        else None
+                    ),
+                    "items": order.get("items", {})
+                })
+
+            result.append(stemp_data)
+
+        return jsonify(result), 200
+
+    except Exception as e:
+        traceback.print_exc()
+        return jsonify({"success": False, "error": str(e)}), 500
 
 
 #-----------------------------
