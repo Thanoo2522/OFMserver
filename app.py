@@ -116,7 +116,33 @@ def calc_costrider(price_total: float) -> float:
         print("calc_costrider error:", e)
         return 0
 
-#---------------------------------------------------------------
+#-----------------------ดึงรูปจาก Firebase Storage----------------------------------------
+@app.route("/get_bookbank_images", methods=["GET"])
+def get_bookbank_images():
+    try:
+        blobs = bucket.list_blobs(prefix="bookbankpayment/")
+
+        image_urls = []
+
+        for blob in blobs:
+            # เอาเฉพาะไฟล์รูป
+            if blob.name.lower().endswith((".png", ".jpg", ".jpeg")):
+                # ทำ public url
+                blob.make_public()
+                image_urls.append(blob.public_url)
+
+        return jsonify({
+            "success": True,
+            "images": image_urls
+        })
+
+    except Exception as e:
+        return jsonify({
+            "success": False,
+            "error": str(e)
+        }), 500
+
+#-------------------------------
 
 @firestore.transactional
 def update_qty(transaction, ref, delta):
