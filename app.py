@@ -1356,9 +1356,6 @@ def confirm_order():
         if not order_ref.get().exists:
             return jsonify({"success": False, "error": "order not found"}), 404
 
-        # ------------------------------------------------
-        # update order
-        # ------------------------------------------------
         order_ref.update({
             "status": "orderconfirmed",
             "Preorder": 0,
@@ -1367,9 +1364,6 @@ def confirm_order():
 
         customer_ref.update({"activeOrderId": ""})
 
-        # ------------------------------------------------
-        # load items
-        # ------------------------------------------------
         partner_items = {}
         total_price = 0.00
 
@@ -1384,8 +1378,7 @@ def confirm_order():
             price = round(float(item.get("priceproduct", 0)), 2)
             qty   = int(item.get("numberproduct", 1))
 
-            line_total = round(price * qty, 2)
-            total_price += line_total
+            total_price += round(price * qty, 2)
 
             partner_items.setdefault(partnershop, {})
             partner_items[partnershop][itemId] = item
@@ -1395,9 +1388,7 @@ def confirm_order():
         if not partner_items:
             return jsonify({"success": False, "error": "no items"}), 400
 
-        # ------------------------------------------------
-        # notification
-        # ------------------------------------------------
+        # notification (ไม่แตะ logic)
         for partnershop, items in partner_items.items():
             (
                 db.collection("OFM_name")
@@ -1420,9 +1411,6 @@ def confirm_order():
                   })
             )
 
-        # ------------------------------------------------
-        # delivery save
-        # ------------------------------------------------
         call_rider_ref = (
             db.collection("OFM_name")
               .document(nameOfm)
@@ -1443,17 +1431,14 @@ def confirm_order():
         }
 
         for partnershop, items in partner_items.items():
-
             shop_total = 0.00
             shop_block = {"order": "available"}
 
             for itemId, item in items.items():
-
                 price = round(float(item.get("priceproduct", 0)), 2)
                 qty   = int(item.get("numberproduct", 1))
-                line_total = round(price * qty, 2)
 
-                shop_total += line_total
+                shop_total += round(price * qty, 2)
 
                 shop_block[itemId] = {
                     "productname": item.get("productname", ""),
@@ -1473,9 +1458,7 @@ def confirm_order():
 
         call_rider_ref.set(call_rider_data)
 
-        # ------------------------------------------------
-        # costservice partner
-        # ------------------------------------------------
+        # ---------------- costservice partner ----------------
         for partnershop, items in partner_items.items():
 
             shop_total = 0.00
@@ -1485,7 +1468,6 @@ def confirm_order():
                 shop_total += round(price * qty, 2)
 
             shop_total = round(shop_total, 2)
-
             costservice_thisorder = round(calc_costservice(shop_total), 2)
 
             costservice_col = (
@@ -1496,15 +1478,22 @@ def confirm_order():
                   .collection("costservice")
             )
 
-            stemp_doc = next(
-                costservice_col.where("pay", "==", "not").limit(1).stream(),
-                None
+            stemp_doc = None
+            stemp_not_docs = (
+                costservice_col
+                .where("pay", "==", "not")
+                .limit(1)
+                .stream()
             )
+
+            for d in stemp_not_docs:
+                stemp_doc = d
+                break
 
             if stemp_doc:
                 stemp_ref = stemp_doc.reference
             else:
-                stemp_ref = costservice_col.document()
+                stemp_ref = costservice_col.document(f"STEMP_{int(time.time())}")
                 stemp_ref.set({
                     "price_allorderID": 0.00,
                     "costservice_allorderID": 0.00,
@@ -1516,6 +1505,7 @@ def confirm_order():
                 "orderId": orderId,
                 "Price_orderid": shop_total,
                 "costservice_thisorder": costservice_thisorder,
+                "items": items,
                 "createdAt": firestore.SERVER_TIMESTAMP
             })
 
@@ -1524,13 +1514,66 @@ def confirm_order():
                 "costservice_allorderID": firestore.Increment(costservice_thisorder)
             })
 
-        # ------------------------------------------------
-        # response
-        # ------------------------------------------------
+        # ---------------- costservice delivery ----------------
+        for partnershop, items in partner_items.items():
+
+            shop_total = 0.00
+            for item in items.values():
+                price = round(float(item.get("priceproduct", 0)), 2)
+                qty   = int(item.get("numberproduct", 1))
+                shop_total += round(price * qty, 2)
+
+            shop_total = round(shop_total, 2)
+            costrider_thisorder = round(calc_costrider(shop_total), 2)
+
+            delivery_costservice_col = (
+                db.collection("OFM_name")
+                  .document(nameOfm)
+                  .collection("delivery")
+                  .document(del_nameservice)
+                  .collection("costservice")
+            )
+
+            stemp_doc = None
+            stemp_not_docs = (
+                delivery_costservice_col
+                .where("pay", "==", "not")
+                .limit(1)
+                .stream()
+            )
+
+            for d in stemp_not_docs:
+                stemp_doc = d
+                break
+
+            if stemp_doc:
+                stemp_ref = stemp_doc.reference
+            else:
+                stemp_ref = delivery_costservice_col.document(f"STEMP_{int(time.time())}")
+                stemp_ref.set({
+                    "price_allorderID": 0.00,
+                    "costrider_allorderID": 0.00,
+                    "pay": "not",
+                    "start_createdAt": firestore.SERVER_TIMESTAMP
+                })
+
+            stemp_ref.collection("orders").document(orderId).set({
+                "orderId": orderId,
+                "Price_orderid": shop_total,
+                "costrider_thisorder": costrider_thisorder,
+                "items": items,
+                "createdAt": firestore.SERVER_TIMESTAMP
+            })
+
+            stemp_ref.update({
+                "price_allorderID": firestore.Increment(shop_total),
+                "costrider_allorderID": firestore.Increment(costrider_thisorder)
+            })
+
         return jsonify({
             "success": True,
             "partnerCount": len(partner_items),
-            "totalprice": f"{total_price:.2f}"
+            "totalprice": round(total_price, 2)
         }), 200
 
     except Exception as e:
