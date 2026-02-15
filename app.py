@@ -2509,6 +2509,8 @@ def slave_password():
         }), 500
 
 #-----------------------------------
+from datetime import datetime
+
 @app.route('/api/payment/submit', methods=['POST'])
 def submit_payment():
     try:
@@ -2518,27 +2520,34 @@ def submit_payment():
         ofmname = data.get('ofmname')
         partnershop = data.get('partnershop')
         
-        # สร้างโครงสร้างข้อมูลที่จะบันทึก
+        # 1. สร้างชื่อ Document ตามรูปแบบ ว:ด:ป_hh:mm:ss
+        # %d=วัน, %m=เดือน, %Y=ปี(ค.ศ.), %H=ชั่วโมง, %M=นาที, %S=วินาที
+        now = datetime.now()
+        doc_id = now.strftime("%d:%m:%Y_%H:%M:%S")
+
         payment_data = {
             "namebookbank": data.get('namebookbank'),
             "namphone": data.get('namphone'),
             "date": data.get('date'),
             "time": data.get('time'),
             "money": data.get('money'),
-            "check": "notpay",  # ค่าเริ่มต้นตามที่กำหนด
-            "timestamp": datetime.now() # แนะนำให้เก็บเวลาที่บันทึกจริงไว้ด้วย
+            "check": "notpay",
+            "timestamp": now 
         }
 
-        # บันทึกลง Firestore: OFM_name/{ofmname}/partner/{partnershop}
-        # หมายเหตุ: จะใช้การ set แบบ merge เพื่อไม่ให้ทับข้อมูลอื่นใน document นั้น
-        doc_ref = db.collection("OFM_name").document(ofmname).collection("partner").document(partnershop).collection("bank").document("bank_notification")
-        doc_ref.set(payment_data, merge=True)
+        # 2. เปลี่ยนชื่อ document จาก "bank_notification" เป็น doc_id
+        doc_ref = db.collection("OFM_name").document(ofmname)\
+                    .collection("partner").document(partnershop)\
+                    .collection("bank").document(doc_id)
+        
+        doc_ref.set(payment_data) # ไม่ต้องใช้ merge=True เพราะชื่อ doc ไม่ซ้ำกันอยู่แล้ว
 
-        return jsonify({"status": "success", "message": "บันทึกข้อมูลเรียบร้อย"}), 200
+        return jsonify({"status": "success", "message": "บันทึกข้อมูลเรียบร้อย", "doc_id": doc_id}), 200
 
     except Exception as e:
         print(traceback.format_exc())
         return jsonify({"status": "error", "message": str(e)}), 500
+
 
 # ------------------------------------
 if __name__ == "__main__":
