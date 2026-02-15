@@ -2531,7 +2531,7 @@ def submit_payment():
 
         # บันทึกลง Firestore: OFM_name/{ofmname}/partner/{partnershop}
         # หมายเหตุ: จะใช้การ set แบบ merge เพื่อไม่ให้ทับข้อมูลอื่นใน document นั้น
-        doc_ref = db.collection("OFM_name").document(ofmname).collection("partner").document(partnershop)
+        doc_ref = db.collection("OFM_name").document(ofmname).collection("partner").document(partnershop).collection("bank").document("bank_notification")
         doc_ref.set(payment_data, merge=True)
 
         return jsonify({"status": "success", "message": "บันทึกข้อมูลเรียบร้อย"}), 200
