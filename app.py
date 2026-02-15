@@ -10,6 +10,8 @@ from firebase_admin import credentials, storage, db as rtdb, firestore, messagin
 from werkzeug.security import generate_password_hash, check_password_hash
 from datetime import datetime, timedelta
 import time
+from datetime import datetime
+ 
  
  
 
@@ -66,7 +68,8 @@ def send_fcm_to_partner(fcm_token, title, body, data=None):
 
     except Exception as e:
         print("❌ FCM error:", e)
-        #------------------------------
+ 
+#----------------------------------------------
 def build_prefixes(text: str):
     text = text.lower().strip()
     prefixes = []
@@ -2505,6 +2508,37 @@ def slave_password():
             "message": str(e)
         }), 500
 
+#-----------------------------------
+@app.route('/api/payment/submit', methods=['POST'])
+def submit_payment():
+    try:
+        data = request.json
+        
+        # ดึงค่าจาก payload
+        ofmname = data.get('ofmname')
+        partnershop = data.get('partnershop')
+        
+        # สร้างโครงสร้างข้อมูลที่จะบันทึก
+        payment_data = {
+            "namebookbank": data.get('namebookbank'),
+            "namphone": data.get('namphone'),
+            "date": data.get('date'),
+            "time": data.get('time'),
+            "money": data.get('money'),
+            "check": "notpay",  # ค่าเริ่มต้นตามที่กำหนด
+            "timestamp": datetime.now() # แนะนำให้เก็บเวลาที่บันทึกจริงไว้ด้วย
+        }
+
+        # บันทึกลง Firestore: OFM_name/{ofmname}/partner/{partnershop}
+        # หมายเหตุ: จะใช้การ set แบบ merge เพื่อไม่ให้ทับข้อมูลอื่นใน document นั้น
+        doc_ref = db.collection("OFM_name").document(ofmname).collection("partner").document(partnershop)
+        doc_ref.set(payment_data, merge=True)
+
+        return jsonify({"status": "success", "message": "บันทึกข้อมูลเรียบร้อย"}), 200
+
+    except Exception as e:
+        print(traceback.format_exc())
+        return jsonify({"status": "error", "message": str(e)}), 500
 
 # ------------------------------------
 if __name__ == "__main__":
